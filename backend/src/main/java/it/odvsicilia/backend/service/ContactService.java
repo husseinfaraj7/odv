@@ -76,5 +76,6 @@ public class ContactService {
         message.setIsRead(true);
         return contactMessageRepository.save(message);
     }
-    }
+    
 }
+
