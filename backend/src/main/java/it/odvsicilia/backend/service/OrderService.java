@@ -136,7 +136,7 @@ public class OrderService {
         
         return orderRepository.save(order);
     }
-    }
+    
     
     public Map<String, Object> getOrderStats() {
         long totalOrders = orderRepository.count();
@@ -165,3 +165,4 @@ public class OrderService {
             .collect(Collectors.joining("\n"));
     }
 }
+
