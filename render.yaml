@@ -34,37 +34,4 @@ services:
       - key: FRONTEND_URL
         value: https://odv-mfnu.onrender.com
 
-  # Frontend Service - Next.js
-  - type: web
-    name: hussein-project-frontend
-    env: node
-    rootDir: frontend
-    buildCommand: |
-      pnpm install &&
-      pnpm build
-    startCommand: pnpm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: hussein-project-backend
-          property: host
-      - key: SUPABASE_URL
-        value: https://your-project.supabase.co
-      - key: NEXT_PUBLIC_SUPABASE_URL
-        value: https://your-project.supabase.co
-      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: ADMIN_EMAIL
-        sync: false
-      - key: BREVO_API_KEY
-        value: JVfMqU97vcRdFLYr
-
-databases:
-  - name: hussein-project-db
-    databaseName: husseinproject
-    user: husseinproject
+ 
