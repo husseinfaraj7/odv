@@ -31,9 +31,9 @@ public class CorsConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOrigins("https://odvsicilia.it", "http://localhost:3000", "http://127.0.0.1:5500")
+                .allowedOrigins("https://odvsicilia.it", "https://www.odvsicilia.it", "http://localhost:3000", "http://127.0.0.1:5500")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
+                .allowedHeaders("Content-Type", "Authorization", "*")
                 .allowCredentials(true);
     }
     
@@ -55,3 +55,4 @@ public class CorsConfig implements WebMvcConfigurer {
         return mailSender;
     }
 }
+
