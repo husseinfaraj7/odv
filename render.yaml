@@ -1,0 +1,103 @@
+services:
+  # Backend Service - Java Spring Boot
+  - type: web
+    name: faraj-project-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerRegistryCredential: 
+      registry: https://index.docker.io/v1/
+      username:
+        fromEnvVar: DOCKER_HUB_USERNAME
+      password:
+        fromEnvVar: DOCKER_HUB_PASSWORD
+    region: oregon
+    healthCheckPath: /actuator/health
+    # Using main Dockerfile with updated OpenJDK 17 base images (openjdk:17-jdk-slim and openjdk:17-jre-slim)
+    envVars:
+      # Spring Boot Configuration
+      - key: SPRING_PROFILES_ACTIVE
+        value: "prod"
+      - key: PORT
+        value: "8080"
+      
+      # Database Configuration (PostgreSQL)
+      # 
+      # IMPORTANT: URL Encoding for Database Passwords
+      # ===============================================
+      # If your database password contains special characters, they MUST be URL encoded
+      # before including in the DATABASE_URL environment variable.
+      #
+      # Common special characters that require URL encoding:
+      # @ (at sign)     -> %40
+      # : (colon)       -> %3A
+      # / (slash)       -> %2F
+      # ? (question)    -> %3F
+      # # (hash)        -> %23
+      # [ (left bracket) -> %5B
+      # ] (right bracket) -> %5D
+      # % (percent)     -> %25
+      # & (ampersand)   -> %26
+      # = (equals)      -> %3D
+      # + (plus)        -> %2B
+      # space           -> %20
+      #
+      # Example: If your password is "myPass@123:test#"
+      # URL encode it as: "myPass%40123%3Atest%23"
+      # 
+      # Complete DATABASE_URL example:
+      # postgresql://postgres:myPass%40123%3Atest%23@db.project.supabase.co:5432/postgres
+      #
+      - key: DATABASE_URL
+        sync: true
+      - key: DB_USERNAME
+        sync: true
+      - key: DB_PASSWORD
+        sync: true
+      - key: DDL_AUTO
+        value: "validate"
+      
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        value: https://pejuystijjkjxjctieyb.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: true
+      - key: SUPABASE_ROLE_KEY
+        sync: true
+      
+      # Email Configuration
+      - key: ADMIN_EMAIL
+        sync: true
+      - key: BREVO_API_KEY
+        sync: true
+      - key: BREVO_SMTP_SERVER
+        value: smtp-relay.brevo.com
+      - key: BREVO_SMTP_PORT
+        value: "587"
+      - key: BREVO_SMTP_USERNAME
+        value: 96f5ae002@smtp-brevo.com
+      - key: BREVO_SENDER_EMAIL
+        value: noreply@odvsicilia.it
+      - key: BREVO_SENDER_NAME
+        value: ODV Sicilia
+      
+      # Application Configuration
+      - key: FRONTEND_URL
+        value: https://odvsicilia.it
+      - key: H2_CONSOLE_ENABLED
+        value: "false"
+      
+      # Build Configuration
+      - key: DOCKERFILE_VARIANT
+        value: "default"
+
+
+
+# Docker Registry Credentials for Docker Hub authentication
+dockerRegistryCredentials:
+  - registry: https://index.docker.io/v1/
+    username:
+      fromEnvVar: DOCKER_HUB_USERNAME
+    password:
+      fromEnvVar: DOCKER_HUB_PASSWORD
+
+# No database service needed - using external Supabase database
