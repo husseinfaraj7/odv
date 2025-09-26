@@ -1,0 +1,108 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Frontend dependencies and build artifacts
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+frontend/.vercel/
+
+# Backend dependencies and build artifacts
+backend/target/
+backend/test-classes/
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+*.jar
+*.war
+*.class
+
+# Maven test compilation artifacts
+**/test-classes/
+**/*.class
+
+# Debug and log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# Environment files - exclude all .env files
+.env
+.env.*
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+
+# Environment file exceptions - include template files
+!.env.example
+!.env.render.example
+!backend/.env.example
+!backend/.env.render.example
+!frontend/.env.example
+!frontend/.env.render.example
+
+# IDE-specific files
+.idea/
+**/.idea/
+*.iml
+**/*.iml
+.vscode/
+**/.vscode/
+.settings/
+**/.settings/
+.project
+**/.project
+.classpath
+**/.classpath
+*.swp
+**/*.swp
+*.swo
+**/*.swo
+
+# Operating system files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+**/Thumbs.db
+desktop.ini
+**/desktop.ini
+
+# Build artifacts
+target/
+**/target/
+*.class
+**/*.class
+*.jar
+**/*.jar
+*.war
+**/*.war
+
+# Temporary files
+*.tmp
+**/*.tmp
+*.temp
+**/*.temp
+*~
+**/*~
+.cache/
+**/.cache/
+*.pid
+**/*.pid
+*.seed
+**/*.seed
+*.lock
+**/*.lock
+
+# Maven wrapper files (can be regenerated with 'mvn wrapper:wrapper')
+mvnw
+mvnw.cmd
+.mvn/
+
+# Maven downloaded binary
+apache-maven-*/
+maven.zip
