@@ -43,7 +43,7 @@ import java.util.HashSet;
 import java.util.ArrayList;
 import sibApi.TransactionalEmailsApi;
 import sibModel.*;
-import sibModel.core.ApiException;
+
 
 import java.util.Arrays;
 
@@ -133,7 +133,8 @@ public class EmailService {
                 throw new EmailDeliveryException("Errore invio email via Brevo API - Nessun messageId restituito", "BREVO_API_INVALID_RESPONSE");
             }
             
-        } catch (ApiException e) {
+        }
+        catch (ApiException e) {
             // Comprehensive error handling with status code mapping
             String errorMessage = "Errore invio email via Brevo API - Status: " + e.getCode();
             if (e.getResponseBody() != null && !e.getResponseBody().isEmpty()) {
