@@ -302,8 +302,19 @@ public class DatabaseConfig {
     private DatabaseConnectionDetails parseConnectionDetails(String databaseUrl) {
         URI uri;
         try {
-            String targetUrl = databaseUrl.startsWith("jdbc:") ? databaseUrl : "jdbc:" + databaseUrl;
-            uri = new URI(targetUrl);
+            String urlToParse = databaseUrl;
+            
+            // Remove jdbc: prefix if present for URI parsing
+            if (urlToParse.startsWith("jdbc:")) {
+                urlToParse = urlToParse.substring(5); // Remove "jdbc:"
+            }
+            
+            // Also normalize postgres:// to postgresql://
+            if (urlToParse.startsWith("postgres://")) {
+                urlToParse = urlToParse.replace("postgres://", "postgresql://");
+            }
+            
+            uri = new URI(urlToParse);
         } catch (URISyntaxException e) {
             logger.error("Failed to parse DATABASE_URL: {}", e.getMessage());
             throw new IllegalArgumentException("Invalid DATABASE_URL format", e);
