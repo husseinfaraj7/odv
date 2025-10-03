@@ -32,10 +32,23 @@ public class DatabaseConfig {
 
     /**
      * Gets the transformed database URL from environment with proper JDBC formatting.
+     * Supports both DATABASE_URL and separate DATABASE_HOST/PORT/NAME variables.
      */
     @Bean
     @Primary
     public String transformedDatabaseUrl() {
+        // Check if separate environment variables are provided
+        String host = System.getenv("DATABASE_HOST");
+        String port = System.getenv("DATABASE_PORT");
+        String name = System.getenv("DATABASE_NAME");
+        
+        if (host != null && !host.isEmpty()) {
+            String dbPort = (port != null && !port.isEmpty()) ? port : "5432";
+            String dbName = (name != null && !name.isEmpty()) ? name : "postgres";
+            return String.format("jdbc:postgresql://%s:%s/%s", host, dbPort, dbName);
+        }
+        
+        // Fall back to DATABASE_URL
         String rawUrl = System.getenv("DATABASE_URL");
         
         if (rawUrl == null || rawUrl.isEmpty()) {
@@ -52,6 +65,24 @@ public class DatabaseConfig {
     @Bean
     @Primary
     public DataSource dataSource() {
+        String host = System.getenv("DATABASE_HOST");
+        String user = System.getenv("DATABASE_USER");
+        String password = System.getenv("DATABASE_PASSWORD");
+        
+        // If separate variables are provided, use them directly
+        if (host != null && !host.isEmpty() && user != null && password != null) {
+            logger.info("Using separate DATABASE_HOST/USER/PASSWORD environment variables");
+            try {
+                DataSource dataSource = createSupabaseDataSourceFromEnvVars(host, user, password);
+                testDatabaseConnection(dataSource);
+                return dataSource;
+            } catch (Exception e) {
+                logger.error("Failed to create DataSource from env vars, falling back to H2: {}", e.getMessage());
+                return createH2DataSource();
+            }
+        }
+        
+        // Fall back to DATABASE_URL parsing
         String databaseUrl = System.getenv("DATABASE_URL");
         
         if (databaseUrl == null || databaseUrl.trim().isEmpty()) {
@@ -166,6 +197,45 @@ public class DatabaseConfig {
             
             logger.info("=== POST-STARTUP DATABASE VALIDATION COMPLETE ===");
         }
+    }
+
+    private DataSource createSupabaseDataSourceFromEnvVars(String host, String user, String password) {
+        String port = System.getenv("DATABASE_PORT");
+        String name = System.getenv("DATABASE_NAME");
+        
+        String dbPort = (port != null && !port.isEmpty()) ? port : "5432";
+        String dbName = (name != null && !name.isEmpty()) ? name : "postgres";
+        
+        String jdbcUrl = String.format("jdbc:postgresql://%s:%s/%s", host, dbPort, dbName);
+        
+        logger.info("Creating DataSource with JDBC URL: {}", jdbcUrl);
+        
+        HikariConfig config = new HikariConfig();
+        
+        config.setJdbcUrl(jdbcUrl);
+        config.setUsername(user);
+        config.setPassword(password);
+        config.setDriverClassName("org.postgresql.Driver");
+        
+        config.setMaximumPoolSize(MAXIMUM_POOL_SIZE);
+        config.setConnectionTimeout(CONNECTION_TIMEOUT.toMillis());
+        
+        config.setConnectionTestQuery("SELECT 1");
+        config.setValidationTimeout(Duration.ofSeconds(5).toMillis());
+        config.setPoolName("SupabaseHikariPool");
+        
+        config.addDataSourceProperty("cachePrepStmts", "true");
+        config.addDataSourceProperty("prepStmtCacheSize", "250");
+        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+        config.addDataSourceProperty("useServerPrepStmts", "true");
+        config.addDataSourceProperty("useLocalSessionState", "true");
+        config.addDataSourceProperty("rewriteBatchedStatements", "true");
+        config.addDataSourceProperty("cacheResultSetMetadata", "true");
+        config.addDataSourceProperty("cacheServerConfiguration", "true");
+        config.addDataSourceProperty("elideSetAutoCommits", "true");
+        config.addDataSourceProperty("maintainTimeStats", "false");
+        
+        return new HikariDataSource(config);
     }
 
     private DataSource createSupabaseDataSource(String databaseUrl) {
