@@ -24,7 +24,7 @@ public class EmailServiceMinimal {
     
     private String senderEmail = "test@odvsicilia.it";
     private String senderName = "ODV Sicilia Test";
-    private String adminEmail = "admin@odvsicilia.it";
+    private String adminEmail = "info@odvsicilia.it";
     
     private final Pattern templateParameterPattern;
     private final Pattern emailPattern;
@@ -277,4 +277,5 @@ public class EmailServiceMinimal {
             throw new EmailInvalidRecipientException("Email destinatario non valida: " + email, "RECIPIENT_EMAIL_INVALID");
         }
     }
+
 }
