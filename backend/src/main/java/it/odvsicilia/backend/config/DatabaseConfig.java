@@ -33,6 +33,12 @@ public class DatabaseConfig {
     /**
      * Gets the transformed database URL from environment with proper JDBC formatting.
      * Supports both DATABASE_URL and separate DATABASE_HOST/PORT/NAME variables.
+     * 
+     * Supported DATABASE_URL formats:
+     * - postgresql://user:password@host:port/database
+     * - jdbc:postgresql://user:password@host:port/database
+     * - postgres://user:password@host:port/database (auto-converted to postgresql)
+     * - jdbc:postgres://user:password@host:port/database (auto-converted)
      */
     @Bean
     @Primary
