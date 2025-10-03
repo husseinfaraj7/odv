@@ -304,34 +304,47 @@ public class DatabaseConfig {
         try {
             String urlToParse = databaseUrl;
             
+            logger.info("Original DATABASE_URL: {}", databaseUrl);
+            
             // Remove jdbc: prefix if present for URI parsing
             if (urlToParse.startsWith("jdbc:")) {
                 urlToParse = urlToParse.substring(5); // Remove "jdbc:"
+                logger.info("After removing jdbc: prefix: {}", urlToParse);
             }
             
             // Also normalize postgres:// to postgresql://
             if (urlToParse.startsWith("postgres://")) {
                 urlToParse = urlToParse.replace("postgres://", "postgresql://");
+                logger.info("After normalizing to postgresql://: {}", urlToParse);
             }
             
+            logger.info("Attempting to parse URI: {}", urlToParse);
             uri = new URI(urlToParse);
+            logger.info("Successfully parsed URI. UserInfo: {}", uri.getUserInfo());
         } catch (URISyntaxException e) {
-            logger.error("Failed to parse DATABASE_URL: {}", e.getMessage());
+            logger.error("Failed to parse DATABASE_URL. Original: {}, Error: {}", databaseUrl, e.getMessage());
+            logger.error("Make sure your DATABASE_URL format is: postgresql://username:password@host:port/database");
+            logger.error("Or use separate environment variables: DATABASE_HOST, DATABASE_USER, DATABASE_PASSWORD");
             throw new IllegalArgumentException("Invalid DATABASE_URL format", e);
         }
         
         if (uri.getUserInfo() == null) {
+            logger.error("No user authentication information found in DATABASE_URL");
+            logger.error("Expected format: postgresql://username:password@host:port/database");
             throw new IllegalArgumentException("No user authentication information found in DATABASE_URL");
         }
         
         String[] userInfo = uri.getUserInfo().split(":", 2);
         if (userInfo.length != 2) {
+            logger.error("Invalid user information format. Expected username:password, got: {}", uri.getUserInfo());
             throw new IllegalArgumentException("Invalid user information format in DATABASE_URL");
         }
         
         // Use raw credentials directly without any encoding/decoding
         String username = userInfo[0];
         String password = userInfo[1];
+        
+        logger.info("Parsed username: {}, password length: {}", username, password.length());
         
         if (username.trim().isEmpty() || password.trim().isEmpty()) {
             throw new IllegalArgumentException("Username or password is empty in DATABASE_URL");
