@@ -1,6 +1,6 @@
 package it.odvsicilia.backend.config;
 
-package your.package; // adjust to your actual package
+
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -32,3 +32,4 @@ public class DatabaseUrlUtils {
         );
     }
 }
+
