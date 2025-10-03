@@ -394,3 +394,114 @@ public class EmailService {
     private String buildOrderAdminEmailHtml(String orderNumber, String customerName, 
                                           String customerEmail, String totalAmount, String items) {
         return String.format("""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #2c5530; border-bottom: 2px solid #f4a261; padding-bottom: 10px;">
+                        Nuovo Ordine Ricevuto
+                    </h2>
+                    
+                    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="color: #2c5530; margin-top: 0;">Dettagli Ordine:</h3>
+                        <p><strong>Numero Ordine:</strong> %s</p>
+                        <p><strong>Cliente:</strong> %s</p>
+                        <p><strong>Email:</strong> %s</p>
+                        <p><strong>Totale:</strong> €%s</p>
+                    </div>
+                    
+                    <div style="background-color: #fff; padding: 20px; border-left: 4px solid #f4a261; margin: 20px 0;">
+                        <h4 style="color: #2c5530; margin-top: 0;">Articoli Ordinati:</h4>
+                        <div style="white-space: pre-wrap;">%s</div>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                        <p style="color: #666; font-size: 14px;">
+                            Questo ordine è stato effettuato dal sito web ODV Sicilia
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """, orderNumber, customerName, customerEmail, totalAmount, items);
+    }
+    
+    private String buildOrderConfirmationEmailHtml(String customerName, String orderNumber, 
+                                                  String totalAmount, String items) {
+        return String.format("""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #2c5530; border-bottom: 2px solid #f4a261; padding-bottom: 10px;">
+                        Conferma Ordine
+                    </h2>
+                    
+                    <p>Caro/a <strong>%s</strong>,</p>
+                    
+                    <p>Grazie per il tuo ordine! Abbiamo ricevuto la tua richiesta e la stiamo elaborando.</p>
+                    
+                    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="color: #2c5530; margin-top: 0;">Riepilogo Ordine:</h3>
+                        <p><strong>Numero Ordine:</strong> %s</p>
+                        <p><strong>Totale:</strong> €%s</p>
+                    </div>
+                    
+                    <div style="background-color: #fff; padding: 20px; border-left: 4px solid #f4a261; margin: 20px 0;">
+                        <h4 style="color: #2c5530; margin-top: 0;">Articoli Ordinati:</h4>
+                        <div style="white-space: pre-wrap;">%s</div>
+                    </div>
+                    
+                    <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <p style="margin: 0; color: #856404;">
+                            <strong>Nota:</strong> Riceverai una conferma quando il tuo ordine sarà pronto per la consegna.
+                        </p>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                        <p style="color: #666; font-size: 14px;">
+                            Cordiali saluti,<br>
+                            Il Team ODV Sicilia
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """, customerName, orderNumber, totalAmount, items);
+    }
+    
+    private void validateEmailInputs(String customerName, String customerEmail, String subject) {
+        if (customerName == null || customerName.trim().isEmpty()) {
+            throw new EmailDeliveryException("Nome cliente non valido", "INVALID_CUSTOMER_NAME");
+        }
+        if (customerEmail == null || customerEmail.trim().isEmpty()) {
+            throw new EmailDeliveryException("Email cliente non valida", "INVALID_CUSTOMER_EMAIL");
+        }
+        if (subject == null || subject.trim().isEmpty()) {
+            throw new EmailDeliveryException("Oggetto non valido", "INVALID_SUBJECT");
+        }
+    }
+    
+    private void validateOrderEmailInputs(String orderNumber, String customerName, 
+                                         String customerEmail, String totalAmount) {
+        validateEmailInputs(customerName, customerEmail, "Order " + orderNumber);
+        if (orderNumber == null || orderNumber.trim().isEmpty()) {
+            throw new EmailDeliveryException("Numero ordine non valido", "INVALID_ORDER_NUMBER");
+        }
+        if (totalAmount == null || totalAmount.trim().isEmpty()) {
+            throw new EmailDeliveryException("Importo totale non valido", "INVALID_TOTAL_AMOUNT");
+        }
+    }
+    
+    private void validateRecipientEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            throw new EmailInvalidRecipientException("Email destinatario non valida", "INVALID_RECIPIENT_EMAIL");
+        }
+        
+        try {
+            InternetAddress emailAddr = new InternetAddress(email);
+            emailAddr.validate();
+        } catch (AddressException e) {
+            throw new EmailInvalidRecipientException("Formato email non valido: " + email, 
+                                                    "INVALID_EMAIL_FORMAT", e);
+        }
+    }
+}
