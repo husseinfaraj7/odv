@@ -20,11 +20,11 @@ services:
       - key: PORT
         value: "8080"
       
-      - key: DATABASE_URL
+      - key: SPRING_DATASOURCE_URL
         sync: true
-      - key: DATABASE_USER
+      - key: SPRING_DATASOURCE_USERNAME
         sync: true
-      - key: DATABASE_PASSWORD
+      - key: SPRING_DATASOURCE_PASSWORD
         sync: true
       - key: DDL_AUTO
         value: "validate"
@@ -74,3 +74,4 @@ dockerRegistryCredentials:
       fromEnvVar: DOCKER_HUB_PASSWORD
 
 # No database service needed - using external Supabase database
+
