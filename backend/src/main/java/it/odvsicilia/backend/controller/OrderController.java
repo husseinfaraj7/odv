@@ -30,7 +30,7 @@ public class OrderController {
         if (bindingResult.hasErrors()) {
             String errorMessage = bindingResult.getFieldErrors().stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                .reduce((a, b) => a + ", " + b)
+                .reduce((a, b) -> a + ", " + b)
                 .orElse("Errori di validazione");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("Dati dell'ordine non validi", errorMessage));
