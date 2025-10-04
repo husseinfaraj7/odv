@@ -8,6 +8,8 @@ import java.math.BigDecimal;
 
 public class OrderItemDto {
     
+    private String productId;
+    
     @NotBlank(message = "Nome prodotto è obbligatorio")
     private String productName;
     
@@ -33,6 +35,9 @@ public class OrderItemDto {
     }
     
     // Getters and Setters
+    public String getProductId() { return productId; }
+    public void setProductId(String productId) { this.productId = productId; }
+    
     public String getProductName() { return productName; }
     public void setProductName(String productName) { this.productName = productName; }
     
@@ -44,6 +49,9 @@ public class OrderItemDto {
     
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
+    
+    public BigDecimal getPrice() { return unitPrice; }
+    public void setPrice(BigDecimal price) { this.unitPrice = price; }
     
     public String getProductSku() { return productSku; }
     public void setProductSku(String productSku) { this.productSku = productSku; }
