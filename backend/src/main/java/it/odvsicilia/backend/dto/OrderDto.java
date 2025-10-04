@@ -20,16 +20,16 @@ public class OrderDto {
     
     private String customerPhone;
     
-    @NotBlank(message = "Indirizzo è obbligatorio")
-    private String shippingAddress;
+    @NotNull(message = "Indirizzo di spedizione è obbligatorio")
+    @Valid
+    private ShippingAddressDto shippingAddress;
     
-    @NotBlank(message = "Città è obbligatoria")
     private String shippingCity;
-    
-    @NotBlank(message = "CAP è obbligatorio")
     private String shippingPostalCode;
-    
     private String shippingCountry = "Italia";
+    
+    private BigDecimal subtotal;
+    private BigDecimal shippingCost;
     
     @NotNull(message = "Totale è obbligatorio")
     private BigDecimal totalAmount;
@@ -37,6 +37,10 @@ public class OrderDto {
     private String paymentMethod;
     
     private String notes;
+    
+    private String company;
+    private String contactMethod;
+    private String deliveryNotes;
     
     @NotEmpty(message = "Almeno un prodotto è obbligatorio")
     @Valid
@@ -55,8 +59,15 @@ public class OrderDto {
     public String getCustomerPhone() { return customerPhone; }
     public void setCustomerPhone(String customerPhone) { this.customerPhone = customerPhone; }
     
-    public String getShippingAddress() { return shippingAddress; }
-    public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }
+    public ShippingAddressDto getShippingAddress() { return shippingAddress; }
+    public void setShippingAddress(ShippingAddressDto shippingAddress) { 
+        this.shippingAddress = shippingAddress;
+        if (shippingAddress != null) {
+            this.shippingCity = shippingAddress.getCity();
+            this.shippingPostalCode = shippingAddress.getZipCode();
+            this.shippingCountry = shippingAddress.getCountry();
+        }
+    }
     
     public String getShippingCity() { return shippingCity; }
     public void setShippingCity(String shippingCity) { this.shippingCity = shippingCity; }
@@ -67,6 +78,12 @@ public class OrderDto {
     public String getShippingCountry() { return shippingCountry; }
     public void setShippingCountry(String shippingCountry) { this.shippingCountry = shippingCountry; }
     
+    public BigDecimal getSubtotal() { return subtotal; }
+    public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
+    
+    public BigDecimal getShippingCost() { return shippingCost; }
+    public void setShippingCost(BigDecimal shippingCost) { this.shippingCost = shippingCost; }
+    
     public BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     
@@ -75,6 +92,15 @@ public class OrderDto {
     
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+    
+    public String getCompany() { return company; }
+    public void setCompany(String company) { this.company = company; }
+    
+    public String getContactMethod() { return contactMethod; }
+    public void setContactMethod(String contactMethod) { this.contactMethod = contactMethod; }
+    
+    public String getDeliveryNotes() { return deliveryNotes; }
+    public void setDeliveryNotes(String deliveryNotes) { this.deliveryNotes = deliveryNotes; }
     
     public List<OrderItemDto> getItems() { return items; }
     public void setItems(List<OrderItemDto> items) { this.items = items; }
