@@ -22,7 +22,7 @@ public class ContactController {
     @Autowired
     private ContactService contactService;
     
-    @PostMapping("/send")
+    @PostMapping({"", "/", "/send"})
     public ResponseEntity<ApiResponse<String>> sendContactMessage(@Valid @RequestBody ContactMessageDto contactDto, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
             String errorMessage = bindingResult.getFieldErrors().stream()
