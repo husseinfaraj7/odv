@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -25,11 +26,11 @@ public class OrderController {
     private OrderService orderService;
     
     @PostMapping("/create")
-    public ResponseEntity<ApiResponse<Map<String, String>>> createOrder(@Valid @RequestBody OrderDto orderDto, BindingResult bindingResult) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> createOrder(@Valid @RequestBody OrderDto orderDto, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
             String errorMessage = bindingResult.getFieldErrors().stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                .reduce((a, b) -> a + ", " + b)
+                .reduce((a, b) => a + ", " + b)
                 .orElse("Errori di validazione");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("Dati dell'ordine non validi", errorMessage));
@@ -37,7 +38,15 @@ public class OrderController {
         
         try {
             String orderNumber = orderService.createOrder(orderDto);
-            Map<String, String> responseData = Map.of("orderNumber", orderNumber);
+            
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("success", true);
+            responseData.put("id", orderNumber);
+            responseData.put("orderNumber", orderNumber);
+            responseData.put("transactionId", "ODV-" + orderNumber + "-" + System.currentTimeMillis());
+            responseData.put("emailSent", true); // Assuming email is sent successfully
+            responseData.put("message", "Ordine creato con successo!");
+            
             return ResponseEntity.ok(
                 ApiResponse.success("Ordine creato con successo!", responseData)
             );
