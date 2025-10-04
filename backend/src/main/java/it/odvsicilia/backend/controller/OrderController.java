@@ -28,9 +28,9 @@ public class OrderController {
     @PostMapping("/create")
     public ResponseEntity<ApiResponse<Map<String, Object>>> createOrder(@Valid @RequestBody OrderDto orderDto, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
-            String errorMessage = bindingResult.getFieldErrors().stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                .reduce((a, b) -> a + ", " + b)
+           String errorMessage = bindingResult.getFieldErrors().stream()
+            .map(error -> error.getField() + ": " + error.getDefaultMessage())
+             .reduce("", (a, b) -> a.isEmpty() ? b : a + ", " + b);
                 .orElse("Errori di validazione");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("Dati dell'ordine non validi", errorMessage));
