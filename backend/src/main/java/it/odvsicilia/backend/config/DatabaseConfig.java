@@ -212,7 +212,7 @@ public class DatabaseConfig {
         String dbPort = (port != null && !port.isEmpty()) ? port : "5432";
         String dbName = (name != null && !name.isEmpty()) ? name : "postgres";
         
-        String jdbcUrl = String.format("jdbc:postgresql://%s:%s/%s", host, dbPort, dbName);
+        String jdbcUrl = String.format("jdbc:postgresql://%s:%s/%s?sslmode=require&ssl=true", host, dbPort, dbName);
         
         logger.info("Creating DataSource with JDBC URL: {}", jdbcUrl);
         
@@ -230,6 +230,9 @@ public class DatabaseConfig {
         config.setValidationTimeout(Duration.ofSeconds(5).toMillis());
         config.setPoolName("SupabaseHikariPool");
         
+        config.addDataSourceProperty("ssl", "true");
+        config.addDataSourceProperty("sslmode", "require");
+        
         config.addDataSourceProperty("cachePrepStmts", "true");
         config.addDataSourceProperty("prepStmtCacheSize", "250");
         config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
@@ -246,6 +249,11 @@ public class DatabaseConfig {
 
     private DataSource createSupabaseDataSource(String databaseUrl) {
         String jdbcUrl = convertToJdbcFormat(databaseUrl);
+        
+        if (!jdbcUrl.contains("sslmode=")) {
+            jdbcUrl += (jdbcUrl.contains("?") ? "&" : "?") + "sslmode=require&ssl=true";
+        }
+        
         DatabaseConnectionDetails connectionDetails = parseConnectionDetails(databaseUrl);
         
         HikariConfig config = new HikariConfig();
@@ -261,6 +269,9 @@ public class DatabaseConfig {
         config.setConnectionTestQuery("SELECT 1");
         config.setValidationTimeout(Duration.ofSeconds(5).toMillis());
         config.setPoolName("SupabaseHikariPool");
+        
+        config.addDataSourceProperty("ssl", "true");
+        config.addDataSourceProperty("sslmode", "require");
         
         config.addDataSourceProperty("cachePrepStmts", "true");
         config.addDataSourceProperty("prepStmtCacheSize", "250");
