@@ -20,88 +20,11 @@ services:
       - key: PORT
         value: "8080"
       
-      # Database Configuration (PostgreSQL)
-      # 
-      # ============================================================================
-      # CRITICAL: DATABASE_URL SPECIAL CHARACTER ENCODING REQUIREMENTS
-      # ============================================================================
-      # 
-      # Database passwords containing special characters MUST be URL encoded before
-      # including them in the DATABASE_URL environment variable. Failure to properly
-      # encode special characters will result in authentication failures.
-      #
-      # 📋 COMPLETE URL ENCODING REFERENCE:
-      # ═══════════════════════════════════
-      # @ (at sign)        -> %40    | : (colon)         -> %3A
-      # / (slash)          -> %2F    | ? (question)      -> %3F
-      # # (hash/pound)     -> %23    | [ (left bracket)  -> %5B
-      # ] (right bracket)  -> %5D    | % (percent)       -> %25
-      # & (ampersand)      -> %26    | = (equals)        -> %3D
-      # + (plus sign)      -> %2B    | space             -> %20
-      # ! (exclamation)    -> %21    | " (quote)         -> %22
-      # $ (dollar)         -> %24    | ' (apostrophe)    -> %27
-      # * (asterisk)       -> %2A    | , (comma)         -> %2C
-      # ; (semicolon)      -> %3B    | < (less than)     -> %3C
-      # > (greater than)   -> %3E    | \ (backslash)     -> %5C
-      # ^ (caret)          -> %5E    | ` (backtick)      -> %60
-      # { (left brace)     -> %7B    | } (right brace)   -> %7D
-      # | (pipe)           -> %7C    | ~ (tilde)         -> %7E
-      #
-      # 🔍 ENCODING EXAMPLES WITH COMMON PASSWORDS:
-      # ═══════════════════════════════════════════
-      # Original Password    -> URL Encoded Version
-      # "admin@123"         -> "admin%40123"
-      # "pass:word#2024"    -> "pass%3Aword%232024"
-      # "my$ecure&P@ss!"    -> "my%24ecure%26P%40ss%21"
-      # "test user/db"      -> "test%20user%2Fdb"
-      # "complex[pwd]%!"    -> "complex%5Bpwd%5D%25%21"
-      #
-      # 🚀 COMPLETE DATABASE_URL FORMAT EXAMPLES:
-      # ═════════════════════════════════════════
-      # PostgreSQL/Supabase Standard:
-      # postgresql://username:encoded_password@host:port/database
-      #
-      # Real-world examples:
-      # • Simple: postgresql://postgres:mypassword@db.supabase.co:5432/postgres
-      # • With @ symbol: postgresql://postgres:admin%40123@db.supabase.co:5432/postgres
-      # • Complex password "P@ss:w0rd#2024!":
-      #   postgresql://postgres:P%40ss%3Aw0rd%232024%21@db.supabase.co:5432/postgres
-      # • Enterprise example "Dev&Test$2024@Corp!":
-      #   postgresql://dbuser:Dev%26Test%242024%40Corp%21@prod-db.company.com:5432/maindb
-      #
-      # 🔧 MYSQL FORMAT EXAMPLES:
-      # ═════════════════════════
-      # • mysql://user:password@host:port/database
-      # • mysql://admin:secure%40pass%23123@mysql.host.com:3306/production
-      #
-      # 🆘 TROUBLESHOOTING RESOURCES:
-      # ═════════════════════════════
-      # For detailed troubleshooting when database connections fail:
-      # 📖 See: DATABASE_TROUBLESHOOTING.md (located in project root)
-      # 
-      # This comprehensive guide includes:
-      # • Step-by-step encoding examples
-      # • Common error messages and solutions  
-      # • Database-specific configuration tips
-      # • Connection testing methods
-      # • Security best practices
-      #
-      # 🔗 Quick Links:
-      # • Online URL Encoder: https://www.urlencoder.org/
-      # • PostgreSQL Connection Docs: https://www.postgresql.org/docs/current/libpq-connect.html
-      # • Render Database Guide: https://render.com/docs/databases
-      #
-      # ⚠️  COMMON MISTAKES TO AVOID:
-      # • Don't encode the entire DATABASE_URL, only the password portion
-      # • Don't double-encode already encoded characters
-      # • Don't use unencoded special characters in production
-      # • Always test your encoded URL in a development environment first
-      #
       - key: DATABASE_URL
         sync: true
-      - key: DB_USERNAME
+      - key: DATABASE_USER
         sync: true
-      - key: DB_PASSWORD
+      - key: DATABASE_PASSWORD
         sync: true
       - key: DDL_AUTO
         value: "validate"
@@ -133,14 +56,14 @@ services:
       # Application Configuration
       - key: FRONTEND_URL
         value: https://odvsicilia.it
+      - key: BACKEND_URL
+        value: https://odv-mfnu.onrender.com
       - key: H2_CONSOLE_ENABLED
         value: "false"
       
       # Build Configuration
       - key: DOCKERFILE_VARIANT
         value: "default"
-
-
 
 # Docker Registry Credentials for Docker Hub authentication
 dockerRegistryCredentials:
