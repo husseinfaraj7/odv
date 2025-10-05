@@ -256,6 +256,9 @@ public class DatabaseConfig {
             jdbcUrl += (jdbcUrl.contains("?") ? "&" : "?") + "sslmode=require&ssl=true";
         }
         
+        logger.info("Final JDBC URL with SSL: {}", jdbcUrl);
+        logger.info("Attempting to connect to database...");
+        
         HikariConfig config = new HikariConfig();
         
         config.setJdbcUrl(jdbcUrl);
@@ -370,6 +373,13 @@ public class DatabaseConfig {
         String host = uri.getHost();
         int port = uri.getPort() != -1 ? uri.getPort() : 5432;
         String database = uri.getPath().startsWith("/") ? uri.getPath().substring(1) : uri.getPath();
+        
+        logger.info("=== PARSED DATABASE CONNECTION DETAILS ===");
+        logger.info("Host: {}", host);
+        logger.info("Port: {}", port);
+        logger.info("Database: {}", database);
+        logger.info("Username: {}", username);
+        logger.info("==========================================");
         
         // Reconstruct as jdbc:postgresql://host:port/database (no credentials in URL)
         String cleanJdbcUrl = String.format("jdbc:postgresql://%s:%d/%s", host, port, database);
