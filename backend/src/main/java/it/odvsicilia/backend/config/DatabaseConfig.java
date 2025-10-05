@@ -30,6 +30,10 @@ public class DatabaseConfig {
     private static final Duration MAX_LIFETIME = Duration.ofMinutes(30);
     private static final Duration LEAK_DETECTION_THRESHOLD = Duration.ofSeconds(60);
 
+    private static final int MAX_RETRY_ATTEMPTS = 5;
+    private static final long INITIAL_RETRY_DELAY_MS = 2000; // 2 seconds
+    private static final double RETRY_BACKOFF_MULTIPLIER = 1.5;
+
     /**
      * Gets the transformed database URL from environment with proper JDBC formatting.
      * Supports both DATABASE_URL and separate DATABASE_HOST/PORT/NAME variables.
@@ -79,11 +83,13 @@ public class DatabaseConfig {
         if (host != null && !host.isEmpty() && user != null && password != null) {
             logger.info("Using separate DATABASE_HOST/USER/PASSWORD environment variables");
             try {
-                DataSource dataSource = createSupabaseDataSourceFromEnvVars(host, user, password);
+                DataSource dataSource = createDataSourceWithRetry(() -> 
+                    createSupabaseDataSourceFromEnvVars(host, user, password)
+                );
                 testDatabaseConnection(dataSource);
                 return dataSource;
             } catch (Exception e) {
-                logger.error("Failed to create DataSource from env vars, falling back to H2: {}", e.getMessage());
+                logger.error("Failed to create DataSource from env vars after retries, falling back to H2: {}", e.getMessage());
                 return createH2DataSource();
             }
         }
@@ -97,11 +103,13 @@ public class DatabaseConfig {
         }
 
         try {
-            DataSource dataSource = createSupabaseDataSource(databaseUrl);
+            DataSource dataSource = createDataSourceWithRetry(() -> 
+                createSupabaseDataSource(databaseUrl)
+            );
             testDatabaseConnection(dataSource);
             return dataSource;
         } catch (Exception e) {
-            logger.error("Failed to create Supabase DataSource, falling back to H2: {}", e.getMessage());
+            logger.error("Failed to create Supabase DataSource after retries, falling back to H2: {}", e.getMessage());
             return createH2DataSource();
         }
     }
@@ -128,28 +136,45 @@ public class DatabaseConfig {
         }
     }
 
-    private boolean isAuthenticationError(SQLException e) {
-        String sqlState = e.getSQLState();
-        String errorMessage = e.getMessage().toLowerCase();
-        return "28000".equals(sqlState) || // Invalid authorization specification
-               "28P01".equals(sqlState) || // Invalid password
-               "28001".equals(sqlState) || // Invalid authorization
-               errorMessage.contains("authentication failed") ||
+    private boolean isAuthenticationError(Exception e) {
+        if (e instanceof SQLException) {
+            SQLException sqlEx = (SQLException) e;
+            String sqlState = sqlEx.getSQLState();
+            String errorMessage = sqlEx.getMessage().toLowerCase();
+            return "28000".equals(sqlState) || // Invalid authorization specification
+                   "28P01".equals(sqlState) || // Invalid password
+                   "28001".equals(sqlState) || // Invalid authorization
+                   errorMessage.contains("authentication failed") ||
+                   errorMessage.contains("password authentication failed");
+        }
+        String errorMessage = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        return errorMessage.contains("authentication failed") ||
                errorMessage.contains("password authentication failed");
     }
 
-    private boolean isNetworkConnectivityError(SQLException e) {
-        String sqlState = e.getSQLState();
-        String errorMessage = e.getMessage().toLowerCase();
-        return "08000".equals(sqlState) || // Connection exception
-               "08001".equals(sqlState) || // Cannot establish connection
-               "08006".equals(sqlState) || // Connection failure
-               errorMessage.contains("connection refused") ||
-               errorMessage.contains("host unreachable") ||
+    private boolean isNetworkConnectivityError(Exception e) {
+        if (e instanceof SQLException) {
+            SQLException sqlEx = (SQLException) e;
+            String sqlState = sqlEx.getSQLState();
+            String errorMessage = sqlEx.getMessage().toLowerCase();
+            return "08000".equals(sqlState) || // Connection exception
+                   "08001".equals(sqlState) || // Cannot establish connection
+                   "08006".equals(sqlState) || // Connection failure
+                   errorMessage.contains("connection refused") ||
+                   errorMessage.contains("host unreachable") ||
+                   errorMessage.contains("timeout") ||
+                   errorMessage.contains("no route to host") ||
+                   errorMessage.contains("network is unreachable") ||
+                   errorMessage.contains("connection timed out");
+        }
+        String errorMessage = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        return errorMessage.contains("connection refused") ||
+               errorMessage.contains("unreachable") ||
                errorMessage.contains("timeout") ||
                errorMessage.contains("no route to host") ||
                errorMessage.contains("network is unreachable") ||
-               errorMessage.contains("connection timed out");
+               errorMessage.contains("connection timed out") ||
+               errorMessage.contains("failed to initialize pool");
     }
 
     private boolean isSslError(String sqlState, int errorCode, String errorMessage) {
@@ -403,5 +428,64 @@ public class DatabaseConfig {
             this.password = password;
             this.jdbcUrl = jdbcUrl;
         }
+    }
+
+    /**
+     * Creates a DataSource with retry logic to handle Supabase cold starts.
+     * Supabase databases can pause after inactivity and take time to wake up.
+     * This method retries connection attempts with exponential backoff.
+     */
+    private DataSource createDataSourceWithRetry(DataSourceSupplier supplier) {
+        Exception lastException = null;
+        long retryDelay = INITIAL_RETRY_DELAY_MS;
+        
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                if (attempt > 1) {
+                    logger.info("Retry attempt {}/{} after {}ms delay...", attempt, MAX_RETRY_ATTEMPTS, retryDelay);
+                    Thread.sleep(retryDelay);
+                    retryDelay = (long) (retryDelay * RETRY_BACKOFF_MULTIPLIER);
+                } else {
+                    logger.info("Initial connection attempt to database...");
+                }
+                
+                DataSource dataSource = supplier.get();
+                
+                // Test the connection immediately
+                try (Connection conn = dataSource.getConnection()) {
+                    if (conn.isValid(5)) {
+                        logger.info("✓ Successfully connected to database on attempt {}/{}", attempt, MAX_RETRY_ATTEMPTS);
+                        return dataSource;
+                    }
+                }
+                
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Retry interrupted", e);
+            } catch (Exception e) {
+                lastException = e;
+                
+                if (isNetworkConnectivityError(e)) {
+                    logger.warn("Network connectivity issue on attempt {}/{}: {} - Database may be waking up from pause", 
+                        attempt, MAX_RETRY_ATTEMPTS, e.getMessage());
+                } else if (isAuthenticationError(e)) {
+                    logger.error("Authentication error - no point in retrying: {}", e.getMessage());
+                    throw new RuntimeException("Authentication failed", e);
+                } else {
+                    logger.warn("Connection attempt {}/{} failed: {}", attempt, MAX_RETRY_ATTEMPTS, e.getMessage());
+                }
+                
+                if (attempt == MAX_RETRY_ATTEMPTS) {
+                    logger.error("All {} connection attempts failed. Database may be paused or unreachable.", MAX_RETRY_ATTEMPTS);
+                }
+            }
+        }
+        
+        throw new RuntimeException("Failed to connect to database after " + MAX_RETRY_ATTEMPTS + " attempts", lastException);
+    }
+
+    @FunctionalInterface
+    private interface DataSourceSupplier {
+        DataSource get() throws Exception;
     }
 }
