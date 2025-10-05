@@ -248,13 +248,13 @@ public class DatabaseConfig {
     }
 
     private DataSource createSupabaseDataSource(String databaseUrl) {
-        String jdbcUrl = convertToJdbcFormat(databaseUrl);
+        DatabaseConnectionDetails connectionDetails = parseConnectionDetails(databaseUrl);
+        
+        String jdbcUrl = connectionDetails.jdbcUrl;
         
         if (!jdbcUrl.contains("sslmode=")) {
             jdbcUrl += (jdbcUrl.contains("?") ? "&" : "?") + "sslmode=require&ssl=true";
         }
-        
-        DatabaseConnectionDetails connectionDetails = parseConnectionDetails(databaseUrl);
         
         HikariConfig config = new HikariConfig();
         
@@ -367,16 +367,31 @@ public class DatabaseConfig {
             throw new IllegalArgumentException("Username or password is empty in DATABASE_URL");
         }
         
-        return new DatabaseConnectionDetails(username, password);
+        String host = uri.getHost();
+        int port = uri.getPort() != -1 ? uri.getPort() : 5432;
+        String database = uri.getPath().startsWith("/") ? uri.getPath().substring(1) : uri.getPath();
+        
+        // Reconstruct as jdbc:postgresql://host:port/database (no credentials in URL)
+        String cleanJdbcUrl = String.format("jdbc:postgresql://%s:%d/%s", host, port, database);
+        
+        if (uri.getQuery() != null && !uri.getQuery().isEmpty()) {
+            cleanJdbcUrl += "?" + uri.getQuery();
+        }
+        
+        logger.info("Reconstructed clean JDBC URL: {}", cleanJdbcUrl);
+        
+        return new DatabaseConnectionDetails(username, password, cleanJdbcUrl);
     }
     
     private static class DatabaseConnectionDetails {
         public final String username;
         public final String password;
+        public final String jdbcUrl;
         
-        public DatabaseConnectionDetails(String username, String password) {
+        public DatabaseConnectionDetails(String username, String password, String jdbcUrl) {
             this.username = username;
             this.password = password;
+            this.jdbcUrl = jdbcUrl;
         }
     }
 }
