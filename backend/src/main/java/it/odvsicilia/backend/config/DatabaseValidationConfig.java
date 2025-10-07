@@ -51,57 +51,30 @@ public class DatabaseValidationConfig implements InitializingBean {
         logger.info("Application is using JDBC URL format: {}", maskCredentials(validatedUrl));
     }
 
-    private String validateDatabaseUrl(String processedUrl) throws Exception {
+    private String validateDatabaseUrl(String jdbcUrl) throws Exception {
         logger.info("Validating DATABASE_URL format...");
 
-        // Check if DATABASE_URL is present
-        if (processedUrl == null || processedUrl.trim().isEmpty()) {
+        if (jdbcUrl == null || jdbcUrl.trim().isEmpty()) {
             String errorMessage = "DATABASE_URL environment variable is missing or empty. " +
-                    "Acceptable URL formats:\n" +
-                    "  - JDBC format: jdbc:postgresql://<host>:<port>/<database>?user=<username>&password=<password>\n" +
-                    "  - Standard format: postgres://<username>:<password>@<host>:<port>/<database> (will be converted)\n" +
-                    "  - PostgreSQL format: postgresql://<host>:<port>/<database>?user=<username>&password=<password> (will be converted)";
+                    "Expected format: jdbc:postgresql://<host>:<port>/<database>?user=<username>&password=<password>";
             logger.error("URL validation failed: {}", errorMessage);
             throw new IllegalStateException(errorMessage);
         }
 
-        String finalUrl = processedUrl;
-        boolean urlConverted = false;
+        logger.info("Validating DATABASE_URL: {}", maskCredentials(jdbcUrl));
 
-        logger.info("Original DATABASE_URL: {}", maskCredentials(processedUrl));
-
-        // Check if it's a standard postgres:// URL that needs conversion
-        if (processedUrl.startsWith("postgres://")) {
-            logger.info("Standard postgres:// URL detected, converting to JDBC format...");
-            finalUrl = convertStandardToJdbcUrl(processedUrl);
-            urlConverted = true;
-            logger.info("URL conversion completed: {} -> {}", 
-                    maskCredentials(processedUrl), maskCredentials(finalUrl));
-        } else if (processedUrl.startsWith("postgresql://")) {
-            logger.info("PostgreSQL format detected, converting to JDBC format...");
-            finalUrl = convertPostgreSqlToJdbcFormat(processedUrl);
-            urlConverted = true;
-            logger.info("URL conversion completed: {} -> {}", 
-                    maskCredentials(processedUrl), maskCredentials(finalUrl));
-        } else if (!processedUrl.startsWith("jdbc:postgresql://")) {
+        if (!jdbcUrl.startsWith("jdbc:postgresql://")) {
             String errorMessage = String.format(
                     "DATABASE_URL has unsupported format. Current value: '%s'\n" +
-                    "Acceptable URL formats:\n" +
-                    "  - JDBC format: jdbc:postgresql://<host>:<port>/<database>?user=<username>&password=<password>\n" +
-                    "  - Standard format: postgres://<username>:<password>@<host>:<port>/<database> (will be converted to JDBC)\n" +
-                    "  - PostgreSQL format: postgresql://<host>:<port>/<database>?user=<username>&password=<password> (will be converted to JDBC)",
-                    maskCredentials(processedUrl)
+                    "Expected JDBC format: jdbc:postgresql://<host>:<port>/<database>?user=<username>&password=<password>",
+                    maskCredentials(jdbcUrl)
             );
             logger.error("URL validation failed: {}", errorMessage);
             throw new IllegalStateException(errorMessage);
-        } else {
-            logger.info("JDBC PostgreSQL URL format detected, no conversion needed");
         }
 
-        // Validate URL format by parsing
-        URI uri = parseAndValidateJdbcUrl(finalUrl);
+        URI uri = parseAndValidateJdbcUrl(jdbcUrl);
         
-        // Check if host is present
         if (uri.getHost() == null || uri.getHost().trim().isEmpty()) {
             String errorMessage = "DATABASE_URL is missing hostname. " +
                     "Expected format: jdbc:postgresql://<host>:<port>/<database>?user=<username>&password=<password>";
@@ -109,9 +82,8 @@ public class DatabaseValidationConfig implements InitializingBean {
             throw new IllegalStateException(errorMessage);
         }
 
-        // Check if database name is present
         String path = uri.getPath();
-        if (path == null || path.length() <= 1) { // path starts with '/', so length <= 1 means no database name
+        if (path == null || path.length() <= 1) {
             String errorMessage = "DATABASE_URL is missing database name in path. " +
                     "Expected format: jdbc:postgresql://<host>:<port>/<database>?user=<username>&password=<password>";
             logger.error("URL validation failed: {}", errorMessage);
@@ -122,63 +94,18 @@ public class DatabaseValidationConfig implements InitializingBean {
         logger.info("Database connection details - Host: {}, Port: {}, Database: {}",
                 uri.getHost(),
                 uri.getPort() != -1 ? uri.getPort() : "5432 (default)",
-                path.substring(1)); // remove leading '/'
+                path.substring(1));
 
-        if (urlConverted) {
-            logger.info("URL conversion summary: Standard format converted to JDBC format successfully");
-        }
-
-        return finalUrl;
-    }
-
-    private String convertPostgreSqlToJdbcFormat(String postgresqlUrl) {
-        String trimmed = postgresqlUrl.trim();
-        String jdbcUrl = "jdbc:" + trimmed;
-        logger.info("Converted PostgreSQL URL format to JDBC format");
         return jdbcUrl;
-    }
-
-    private String convertStandardToJdbcUrl(String standardUrl) {
-        URI uri = parseAndValidateStandardUrl(standardUrl, "standard URL conversion");
-        String userInfo = uri.getUserInfo();
-        String host = uri.getHost();
-        int port = uri.getPort() != -1 ? uri.getPort() : 5432;
-        String database = uri.getPath().substring(1); // remove leading '/'
-
-        if (userInfo == null) {
-            throw new IllegalArgumentException("Missing credentials in standard URL format");
-        }
-
-        String[] credentials = userInfo.split(":", 2);
-        if (credentials.length != 2) {
-            throw new IllegalArgumentException("Invalid credentials format in standard URL");
-        }
-
-        // Use raw credentials directly without any encoding/decoding
-        String username = credentials[0];
-        String password = credentials[1];
-
-        return String.format("jdbc:postgresql://%s:%d/%s?user=%s&password=%s",
-                host, port, database, username, password);
     }
     
     private URI parseAndValidateJdbcUrl(String jdbcUrl) {
         try {
-            // Remove jdbc:postgresql:// prefix to get the URI part
             String uriPart = jdbcUrl.substring("jdbc:postgresql://".length());
             return new URI("postgresql://" + uriPart);
         } catch (URISyntaxException e) {
             handleUrlParsingException(jdbcUrl, e, "JDBC URL validation");
-            return null; // Never reached
-        }
-    }
-    
-    private URI parseAndValidateStandardUrl(String standardUrl, String operation) {
-        try {
-            return new URI(standardUrl);
-        } catch (URISyntaxException e) {
-            handleUrlParsingException(standardUrl, e, operation);
-            return null; // Never reached
+            return null;
         }
     }
     
@@ -202,7 +129,7 @@ public class DatabaseValidationConfig implements InitializingBean {
             "Error position: %d\n" +
             "Problematic portion: '%s'\n\n" +
             "Please verify:\n" +
-            "1. URL format is correct: postgresql://username:password@host:port/database\n" +
+            "1. URL format is correct: jdbc:postgresql://<host>:<port>/<database>?user=<username>&password=<password>\n" +
             "2. All required components (host, database name, credentials) are included\n" +
             "3. No illegal characters are present in the URL structure\n\n" +
             "Original error: %s",
