@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+DEPLOYMENT.md
+*.md
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Test files
+test-*.ps1
+test-*.sh
+
+# Environment files (but keep .env.render.example)
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Node modules (if any)
+node_modules/
+
+# Build artifacts that will be recreated
+backend/target/
+target/
+
+# Keep these important files:
+# - Dockerfile
+# - render.yaml
+# - mvnw, mvnw.cmd
+# - .mvn/wrapper/
+# - backend/src/
+# - backend/pom.xml
