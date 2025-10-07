@@ -21,6 +21,25 @@ services:
         value: "8080"
       
       # Database Configuration - Simplified naming convention
+      # For Supabase connections, you can use either format:
+      # 1. Standard PostgreSQL format: postgres://user:pass@host:port/dbname
+      #    Example: postgres://postgres.pejuystijjkjxjctieyb:MyP@ss#123@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+      # 2. JDBC format: jdbc:postgresql://host:port/dbname?user=x&password=y
+      #    Example: jdbc:postgresql://aws-0-us-west-1.pooler.supabase.com:6543/postgres?user=postgres.pejuystijjkjxjctieyb&password=MyP%40ss%23123
+      # Note: The application automatically converts the standard format to JDBC format during startup.
+      #
+      # IMPORTANT: URL Encoding for Special Characters
+      # If your password contains special characters like @, :, /, ?, #, or &, you MUST URL-encode them:
+      #   @ becomes %40
+      #   # becomes %23
+      #   : becomes %3A
+      #   / becomes %2F
+      #   ? becomes %3F
+      #   & becomes %26
+      # Example with special characters:
+      #   Original password: MyP@ss#123
+      #   URL-encoded password: MyP%40ss%23123
+      #   Full URL: postgres://postgres.pejuystijjkjxjctieyb:MyP%40ss%23123@aws-0-us-west-1.pooler.supabase.com:6543/postgres
       - key: DATABASE_URL
         sync: true
       - key: DATABASE_USER
