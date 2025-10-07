@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
@@ -12,6 +13,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Arrays;
 
 @Component
 @ConditionalOnProperty(name = "database.validation.enabled", havingValue = "true", matchIfMissing = true)
@@ -23,13 +25,25 @@ public class DatabaseValidationConfig implements InitializingBean {
     private String databaseUrl;
 
     private final DataSource dataSource;
+    private final Environment environment;
 
-    public DatabaseValidationConfig(DataSource dataSource) {
+    public DatabaseValidationConfig(DataSource dataSource, Environment environment) {
         this.dataSource = dataSource;
+        this.environment = environment;
     }
 
     @Override
     public void afterPropertiesSet() throws Exception {
+        String[] activeProfiles = environment.getActiveProfiles();
+        boolean isDevOrTest = Arrays.stream(activeProfiles)
+                .anyMatch(profile -> "dev".equals(profile) || "test".equals(profile));
+        
+        if (isDevOrTest) {
+            logger.info("=== DATABASE_URL validation skipped for dev/test profile ===");
+            logger.info("Active profiles: {}", Arrays.toString(activeProfiles));
+            return;
+        }
+        
         logger.info("=== Starting DATABASE_URL validation ===");
         String validatedUrl = validateDatabaseUrl(databaseUrl);
         validateDatabaseConnection(validatedUrl);
