@@ -28,6 +28,28 @@ WORKDIR /app
 # Copy the built JAR from build stage
 COPY --from=builder /app/target/backend-0.0.1-SNAPSHOT.jar app.jar
 
+# ============================================
+# REQUIRED ENVIRONMENT VARIABLES
+# ============================================
+# The following environment variables MUST be set for production deployment:
+#
+# DATABASE_URL - Full PostgreSQL connection string (e.g., jdbc:postgresql://host:port/dbname)
+#                or configure individual DATABASE_HOST, DATABASE_PORT, DATABASE_NAME components
+# DATABASE_USER - PostgreSQL username for database authentication
+# DATABASE_PASSWORD - PostgreSQL password for database authentication
+#
+# SMTP_USERNAME - Brevo SMTP username for email sending
+# SMTP_PASSWORD - Brevo SMTP password for email sending
+#
+# OPTIONAL (with defaults):
+# PORT - Server port (default: 8080)
+# SPRING_JPA_HIBERNATE_DDL_AUTO - Schema management strategy (default: update)
+#                                  Use 'update' for initial deployment, 'validate' once schema is stable
+# ============================================
+
+# Set default for Hibernate DDL auto strategy
+ENV SPRING_JPA_HIBERNATE_DDL_AUTO=update
+
 # Install curl for health check
 RUN apk add --no-cache curl
 
