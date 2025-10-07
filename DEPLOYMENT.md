@@ -142,6 +142,146 @@ Render automatically monitors the `/actuator/health` endpoint for service availa
 
 ## Troubleshooting
 
+### DATABASE_URL Formatting Guide
+
+The application supports both standard PostgreSQL and JDBC URL formats. The `DatabaseUrlEnvironmentPostProcessor` automatically converts standard PostgreSQL URLs to JDBC format during startup, so either format can be used in environment variables.
+
+#### Supported URL Formats
+
+**Standard PostgreSQL Format (Recommended)**
+```
+postgres://username:password@hostname:port/database
+postgresql://username:password@hostname:port/database
+```
+
+Examples:
+```
+postgres://myuser:mypass@localhost:5432/odvsicilia
+postgresql://admin:SecurePass123@db.example.com:5432/production_db
+```
+
+**JDBC Format (Alternative)**
+```
+jdbc:postgresql://hostname:port/database?user=username&password=password
+```
+
+Examples:
+```
+jdbc:postgresql://localhost:5432/odvsicilia?user=myuser&password=mypass
+jdbc:postgresql://db.example.com:5432/production_db?user=admin&password=SecurePass123
+```
+
+#### URL Encoding Special Characters
+
+If your password contains special characters, they **must** be URL-encoded:
+
+| Character | Encoded | Character | Encoded |
+|-----------|---------|-----------|---------|
+| `@` | `%40` | `&` | `%26` |
+| `#` | `%23` | `+` | `%2B` |
+| `$` | `%24` | `=` | `%3D` |
+| `%` | `%25` | `:` | `%3A` |
+| `/` | `%2F` | `?` | `%3F` |
+| ` ` (space) | `%20` | `!` | `%21` |
+
+**Example with Special Characters:**
+```
+Original password: P@ss#word$123
+Standard format:   postgres://user:P%40ss%23word%24123@host:5432/db
+JDBC format:       jdbc:postgresql://host:5432/db?user=user&password=P%40ss%23word%24123
+```
+
+#### Common Connection Error Symptoms
+
+| Error Message | Likely Cause | Solution |
+|---------------|--------------|----------|
+| `Connection refused` | Database server not accessible | Check hostname, port, and firewall rules |
+| `Authentication failed` | Wrong username or password | Verify credentials and URL encoding |
+| `Database "xyz" does not exist` | Database name incorrect | Check database name in URL |
+| `No suitable driver found` | JDBC URL malformed | Verify URL starts with `jdbc:postgresql://` |
+| `Unterminated quoted string` | Special char not URL-encoded | Encode special characters in password |
+| `Could not create connection to database` | Network timeout or DNS issue | Test DNS resolution and network connectivity |
+| `SSL error` | SSL mode mismatch | Add `?sslmode=require` or `?sslmode=disable` |
+
+#### Debugging Steps
+
+**1. Verify DATABASE_URL Conversion**
+
+Check application logs during startup for the conversion process:
+
+```
+INFO  - DatabaseUrlEnvironmentPostProcessor: Original DATABASE_URL: postgres://user:pass@host:5432/db
+INFO  - DatabaseUrlEnvironmentPostProcessor: Converted to JDBC URL: jdbc:postgresql://host:5432/db?user=user&password=pass
+```
+
+If the conversion log doesn't appear, the URL is being used as-is (already in JDBC format or missing).
+
+**2. Test Connection String Independently**
+
+Use `psql` (PostgreSQL command-line tool) to test the connection:
+
+```bash
+# For standard format (parse it manually):
+psql -h hostname -p port -U username -d database
+
+# Example:
+psql -h localhost -p 5432 -U myuser -d odvsicilia
+```
+
+Or use a Java/JDBC connection test tool:
+
+```bash
+java -cp postgresql-driver.jar TestConnection "jdbc:postgresql://host:5432/db?user=username&password=password"
+```
+
+**3. Enable Detailed Database Logging**
+
+Add these environment variables temporarily to see detailed connection logs:
+
+```
+LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_JDBC=DEBUG
+LOGGING_LEVEL_COM_ZAXXER_HIKARI=DEBUG
+```
+
+Check logs for:
+- Connection pool initialization messages
+- Actual JDBC URL being used (password will be masked)
+- Connection attempt details and error messages
+
+**4. Validate URL Format**
+
+Common mistakes to check:
+- Missing `://` separator: `postgres:user:pass@host/db` ❌
+- Wrong protocol: `http://` or `https://` ❌
+- Unencoded special characters in password
+- Missing port number (should be `5432` for PostgreSQL)
+- Wrong database name or typo
+- Extra spaces or line breaks in environment variable
+
+**5. Check Environment Variable Loading**
+
+Verify the variable is properly set in your deployment environment:
+
+```bash
+# On Render or similar platforms, check the dashboard
+# Locally, you can test with:
+echo $DATABASE_URL
+# or in PowerShell:
+echo $env:DATABASE_URL
+```
+
+**6. Test with Minimal Configuration**
+
+Try connecting with a simple configuration first:
+
+```
+# Remove SSL and other parameters
+postgres://user:password@hostname:5432/database
+
+# If that works, gradually add parameters:
+postgres://user:password@hostname:5432/database?sslmode=require
+```
+
 ### Common Issues
 
 #### 1. Build Failures
@@ -150,9 +290,10 @@ Render automatically monitors the `/actuator/health` endpoint for service availa
 - **Memory Issues**: Check if build requires more memory
 
 #### 2. Database Connection Issues
-- **URL Encoding**: Ensure special characters in passwords are properly encoded
+- **URL Encoding**: Ensure special characters in passwords are properly encoded (see formatting guide above)
 - **Network Access**: Verify database allows connections from Render IPs
 - **Credentials**: Double-check username, password, and database name
+- **URL Format**: Ensure using correct format (see DATABASE_URL Formatting Guide above)
 
 #### 3. Email Service Issues
 - **API Key**: Verify Brevo API key is correct and active
@@ -168,7 +309,7 @@ Render automatically monitors the `/actuator/health` endpoint for service availa
 
 1. **Check Build Logs**: Look for compilation errors or missing dependencies
 2. **Verify Environment Variables**: Ensure all required variables are set
-3. **Test Database Connection**: Verify DATABASE_URL is accessible
+3. **Test Database Connection**: Verify DATABASE_URL is accessible (see DATABASE_URL debugging steps)
 4. **Check Application Logs**: Look for runtime errors or configuration issues
 5. **Validate Health Endpoint**: Test `/actuator/health` endpoint
 

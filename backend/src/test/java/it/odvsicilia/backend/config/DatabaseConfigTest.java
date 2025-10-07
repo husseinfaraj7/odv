@@ -2,6 +2,7 @@ package it.odvsicilia.backend.config;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.springframework.mock.env.MockEnvironment;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -12,7 +13,7 @@ public class DatabaseConfigTest {
     @DisplayName("DatabaseConfig should be instantiable")
     void testDatabaseConfigInstantiation() {
         assertDoesNotThrow(() -> {
-            new DatabaseConfig();
+            new DatabaseConfig(new MockEnvironment());
         });
     }
 }
