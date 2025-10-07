@@ -1,34 +1,49 @@
-# Agent Instructions for ODV Sicilia Backend
+# AGENTS.md - ODV Sicilia Backend
 
 ## Commands
 
-**Setup:** Maven dependencies are managed via Docker. No virtual environment needed.
+### Setup
+```powershell
+# No installation needed - uses Docker-based Maven wrapper
+./mvn.ps1 clean install
+```
 
-**Build:** `.\mvn.ps1 clean package -DskipTests` (or `cd backend; mvn clean package -DskipTests`)
+### Build
+```powershell
+./mvn.ps1 clean package
+```
 
-**Lint:** No dedicated linter configured. Use IDE defaults for Java formatting.
+### Test
+```powershell
+./mvn.ps1 test
+```
 
-**Test:** `.\mvn.ps1 test` (or `cd backend; mvn test`)
+### Lint
+```powershell
+./mvn.ps1 checkstyle:check
+```
 
-**Dev Server:** `.\mvn.ps1 spring-boot:run` (or `cd backend; mvn spring-boot:run`)
+### Dev Server
+```powershell
+cd backend; ./mvn.ps1 spring-boot:run
+```
 
 ## Tech Stack
-
-- **Backend:** Java 17, Spring Boot 3.2.0, Maven
-- **Database:** PostgreSQL (Supabase), H2 (dev/testing)
-- **Email:** Brevo SMTP API
-- **Deployment:** Docker, Render.com
+- **Backend**: Spring Boot 3.2.0 (Java 17)
+- **Database**: PostgreSQL (prod), H2 (dev)
+- **ORM**: Spring Data JPA / Hibernate
+- **Email**: Brevo SMTP API
+- **Deployment**: Docker on Render.com
 
 ## Architecture
-
-Standard layered architecture: `controller/` → `service/` → `repository/` → `model/`
-- Package structure: `it.odvsicilia.backend.*`
-- DTOs for API contracts, JPA entities in `model/`
-- Global exception handling via `@ControllerAdvice`
+- **MVC Pattern**: Controllers → Services → Repositories
+- **Package Structure**: `it.odvsicilia.backend.{controller,service,repository,model,dto,exception,config}`
+- **DTOs**: Separate request/response objects from entities
+- **Global Exception Handling**: Centralized in `GlobalExceptionHandler`
 
 ## Code Style
-
-- No comments unless complex logic requires explanation
-- Use constructor injection (`@Autowired` on fields currently used)
-- Validate input with `@Valid` and Jakarta validation annotations
-- RESTful endpoints under `/api/` prefix
+- **Naming**: camelCase for variables/methods, PascalCase for classes
+- **Validation**: Use Jakarta validation annotations on DTOs
+- **Logging**: SLF4J logger in controllers/services
+- **Error Handling**: Custom exceptions with specific error codes
+- **Cross-Origin**: Configured via `@CrossOrigin` annotations or `CorsConfig`
