@@ -2,7 +2,7 @@ package it.odvsicilia.backend.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
@@ -10,13 +10,17 @@ import org.springframework.stereotype.Component;
 import java.util.Arrays;
 
 @Component
-public class DatabaseConfig implements ApplicationListener<ApplicationEnvironmentPreparedEvent> {
+public class DatabaseConfig implements ApplicationListener<ApplicationReadyEvent> {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseConfig.class);
+    private final Environment environment;
+
+    public DatabaseConfig(Environment environment) {
+        this.environment = environment;
+    }
 
     @Override
-    public void onApplicationEvent(ApplicationEnvironmentPreparedEvent event) {
-        Environment environment = event.getEnvironment();
+    public void onApplicationEvent(ApplicationReadyEvent event) {
         String[] activeProfiles = environment.getActiveProfiles();
         
         // Skip DATABASE_URL validation for dev and test profiles (use H2 instead)
