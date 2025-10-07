@@ -38,8 +38,8 @@ COPY --from=builder /app/target/backend-0.0.1-SNAPSHOT.jar app.jar
 # DATABASE_USER - PostgreSQL username for database authentication
 # DATABASE_PASSWORD - PostgreSQL password for database authentication
 #
-# SMTP_USERNAME - Brevo SMTP username for email sending
-# SMTP_PASSWORD - Brevo SMTP password for email sending
+# BREVO_SMTP_USERNAME - Brevo SMTP username for email sending
+# BREVO_API_KEY - Brevo SMTP password/API key for email sending
 #
 # OPTIONAL (with defaults):
 # PORT - Server port (default: 8080)
