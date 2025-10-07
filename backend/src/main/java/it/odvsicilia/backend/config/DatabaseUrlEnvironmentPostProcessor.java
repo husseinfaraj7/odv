@@ -7,9 +7,6 @@ import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -24,71 +21,138 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         String databaseUrl = environment.getProperty("DATABASE_URL");
         
         if (databaseUrl == null || databaseUrl.trim().isEmpty()) {
-            logger.debug("DATABASE_URL not found - skipping conversion");
+            logger.debug("DATABASE_URL not set, skipping conversion");
             return;
         }
 
         if (databaseUrl.startsWith("jdbc:")) {
-            logger.debug("DATABASE_URL is already in JDBC format - skipping conversion");
+            logger.debug("DATABASE_URL already in JDBC format, skipping conversion");
             return;
         }
 
-        if (!databaseUrl.startsWith("postgres://") && !databaseUrl.startsWith("postgresql://")) {
-            logger.debug("DATABASE_URL is not in PostgreSQL format - skipping conversion");
-            return;
-        }
-
-        try {
-            String jdbcUrl = convertToJdbcUrl(databaseUrl);
-            
-            Map<String, Object> propertySource = new HashMap<>();
-            propertySource.put("spring.datasource.url", jdbcUrl);
-            
-            environment.getPropertySources().addFirst(
-                new MapPropertySource("databaseUrlConversion", propertySource)
-            );
-            
-            logger.info("Successfully converted DATABASE_URL to JDBC format");
-        } catch (Exception e) {
-            logger.error("Failed to convert DATABASE_URL to JDBC format: {}", e.getMessage());
+        if (databaseUrl.startsWith("postgres://") || databaseUrl.startsWith("postgresql://")) {
+            try {
+                String jdbcUrl = convertToJdbcUrl(databaseUrl);
+                
+                Map<String, Object> props = new HashMap<>();
+                props.put("spring.datasource.url", jdbcUrl);
+                
+                MapPropertySource propertySource = new MapPropertySource(
+                    "databaseUrlConversion", props
+                );
+                environment.getPropertySources().addFirst(propertySource);
+                
+                logger.info("Converted DATABASE_URL to JDBC format");
+            } catch (Exception e) {
+                logger.error("Failed to convert DATABASE_URL to JDBC format", e);
+                throw new IllegalStateException("Invalid DATABASE_URL format", e);
+            }
         }
     }
 
-    private String convertToJdbcUrl(String databaseUrl) throws URISyntaxException, UnsupportedEncodingException {
-        String normalizedUrl = databaseUrl
-            .replace("postgres://", "http://")
-            .replace("postgresql://", "http://");
+    private String convertToJdbcUrl(String databaseUrl) throws Exception {
+        int schemeEnd = databaseUrl.indexOf("://");
+        if (schemeEnd == -1) {
+            throw new IllegalArgumentException("Invalid DATABASE_URL: missing scheme");
+        }
         
-        URI uri = new URI(normalizedUrl);
+        String afterScheme = databaseUrl.substring(schemeEnd + 3);
         
-        String host = uri.getHost();
-        if (host == null) {
+        String userInfo = null;
+        String user = "postgres";
+        String password = "";
+        String hostAndRest;
+        
+        int atIndex = afterScheme.indexOf('@');
+        if (atIndex != -1) {
+            userInfo = afterScheme.substring(0, atIndex);
+            hostAndRest = afterScheme.substring(atIndex + 1);
+            
+            int colonIndex = userInfo.indexOf(':');
+            if (colonIndex != -1) {
+                user = userInfo.substring(0, colonIndex);
+                password = URLEncoder.encode(userInfo.substring(colonIndex + 1), StandardCharsets.UTF_8);
+            } else {
+                user = userInfo;
+            }
+        } else {
+            hostAndRest = afterScheme;
+        }
+        
+        String host;
+        int port = 5432;
+        String database = "postgres";
+        String query = null;
+        
+        int slashIndex = hostAndRest.indexOf('/');
+        if (slashIndex != -1) {
+            String hostPart = hostAndRest.substring(0, slashIndex);
+            String pathPart = hostAndRest.substring(slashIndex + 1);
+            
+            int colonIndex = hostPart.indexOf(':');
+            if (colonIndex != -1) {
+                host = hostPart.substring(0, colonIndex);
+                try {
+                    port = Integer.parseInt(hostPart.substring(colonIndex + 1));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid port number in DATABASE_URL");
+                }
+            } else {
+                host = hostPart;
+            }
+            
+            int queryIndex = pathPart.indexOf('?');
+            if (queryIndex != -1) {
+                database = pathPart.substring(0, queryIndex);
+                query = pathPart.substring(queryIndex + 1);
+            } else {
+                database = pathPart;
+            }
+        } else {
+            int colonIndex = hostAndRest.indexOf(':');
+            int queryIndex = hostAndRest.indexOf('?');
+            
+            if (colonIndex != -1 && (queryIndex == -1 || colonIndex < queryIndex)) {
+                host = hostAndRest.substring(0, colonIndex);
+                String portPart = queryIndex != -1 ? hostAndRest.substring(colonIndex + 1, queryIndex) : hostAndRest.substring(colonIndex + 1);
+                try {
+                    port = Integer.parseInt(portPart);
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid port number in DATABASE_URL");
+                }
+                if (queryIndex != -1) {
+                    query = hostAndRest.substring(queryIndex + 1);
+                }
+            } else if (queryIndex != -1) {
+                host = hostAndRest.substring(0, queryIndex);
+                query = hostAndRest.substring(queryIndex + 1);
+            } else {
+                host = hostAndRest;
+            }
+        }
+        
+        if (host == null || host.trim().isEmpty()) {
             throw new IllegalArgumentException("Invalid DATABASE_URL: missing host");
         }
         
-        int port = uri.getPort() == -1 ? 5432 : uri.getPort();
+        StringBuilder jdbcUrl = new StringBuilder();
+        jdbcUrl.append("jdbc:postgresql://")
+               .append(host)
+               .append(":")
+               .append(port)
+               .append("/")
+               .append(database);
         
-        String path = uri.getPath();
-        if (path == null || path.length() <= 1) {
-            throw new IllegalArgumentException("Invalid DATABASE_URL: missing database name");
+        StringBuilder params = new StringBuilder();
+        params.append("user=").append(user);
+        params.append("&password=").append(password);
+        
+        if (query != null && !query.isEmpty()) {
+            params.append("&").append(query);
         }
-        String database = path.substring(1);
         
-        String userInfo = uri.getUserInfo();
-        if (userInfo == null || !userInfo.contains(":")) {
-            throw new IllegalArgumentException("Invalid DATABASE_URL: missing credentials");
-        }
+        jdbcUrl.append("?").append(params);
         
-        String[] credentials = userInfo.split(":", 2);
-        String user = credentials[0];
-        String password = credentials[1];
-        
-        String encodedUser = URLEncoder.encode(user, StandardCharsets.UTF_8.toString());
-        String encodedPassword = URLEncoder.encode(password, StandardCharsets.UTF_8.toString());
-        
-        return String.format(
-            "jdbc:postgresql://%s:%d/%s?user=%s&password=%s",
-            host, port, database, encodedUser, encodedPassword
-        );
+        return jdbcUrl.toString();
     }
 }
