@@ -1322,6 +1322,627 @@ spring.datasource.hikari.minimum-idle=2
 | **Best For** | Production web apps | Admin tasks, migrations |
 | **Cost Efficiency** | ✅ High (connection reuse) | ⚠️ Limited by plan |
 
+### Supabase Connection Refused Errors
+
+This section helps diagnose and resolve "connection refused" errors when connecting to Supabase, covering how to distinguish between pooler and direct connection failures, verify Supabase configuration, test connectivity, and choose the appropriate connection mode for your deployment platform.
+
+#### Distinguishing Pooler vs Direct Connection Failures in Logs
+
+Connection failures to Supabase manifest differently depending on which connection mode is being used. Examining the **port number** in error messages is the key to identifying the failure type:
+
+**Pooler Connection Failure (Port 6543)**
+
+```
+ERROR: Connection to aws-0-eu-north-1.pooler.supabase.com:6543 refused
+org.postgresql.util.PSQLException: Connection to aws-0-eu-north-1.pooler.supabase.com:6543 refused. 
+  Check that the hostname and port are correct and that the postmaster is accepting TCP/IP connections.
+
+HikariPool-1 - Exception during pool initialization
+java.net.ConnectException: Connection refused (Connection refused)
+  at java.base/java.net.PlainSocketImpl.connect0(Native Method)
+  ...connection attempt to aws-0-eu-north-1.pooler.supabase.com:6543...
+```
+
+**Key Indicators**:
+- Port `6543` in hostname
+- Hostname pattern: `aws-X-REGION.pooler.supabase.com`
+- Error typically means: pooler not enabled, wrong region, or network issue
+
+**Direct Connection Failure (Port 5432)**
+
+```
+ERROR: Connection to db.abcdefghijklmnop.supabase.co:5432 refused
+org.postgresql.util.PSQLException: Connection to db.abcdefghijklmnop.supabase.co:5432 refused.
+  Check that the hostname and port are correct and that the postmaster is accepting TCP/IP connections.
+
+HikariPool-1 - Exception during pool initialization
+java.net.ConnectException: Connection refused (Connection refused)
+  at java.base/java.net.PlainSocketImpl.connect0(Native Method)
+  ...connection attempt to db.abcdefghijklmnop.supabase.co:5432...
+```
+
+**Key Indicators**:
+- Port `5432` in hostname
+- Hostname pattern: `db.PROJECT_REF.supabase.co`
+- Error typically means: project paused, suspended, or direct connections disabled
+
+**Log Analysis Checklist**:
+
+1. **Extract the port number** from the error message:
+   ```bash
+   # Search application logs for connection errors
+   grep -i "connection refused" application.log
+   grep -i "port 6543\|port 5432" application.log
+   ```
+
+2. **Identify the hostname pattern**:
+   - `pooler.supabase.com` → Transaction pooler mode
+   - `db.*.supabase.co` → Direct connection mode
+
+3. **Check DatabaseUrlEnvironmentPostProcessor logs** for URL conversion:
+   ```
+   INFO  - DatabaseUrlEnvironmentPostProcessor: Original DATABASE_URL: postgres://postgres.myproject:pass@aws-0-eu-north-1.pooler.supabase.com:6543/postgres
+   INFO  - DatabaseUrlEnvironmentPostProcessor: Converted to JDBC URL: jdbc:postgresql://aws-0-eu-north-1.pooler.supabase.com:6543/postgres?user=postgres.myproject&password=...
+   ```
+   This confirms which endpoint your application is attempting to connect to.
+
+4. **Correlate with HikariCP initialization logs**:
+   ```bash
+   # Look for HikariCP configuration showing which URL is being used
+   grep -i "HikariConfig" application.log | grep -i "jdbcUrl"
+   ```
+
+#### Verifying Connection Pooling in Supabase Dashboard
+
+Follow these steps to verify that connection pooling is properly enabled and configured in your Supabase project:
+
+**Step 1: Navigate to Database Settings**
+
+1. Log in to [Supabase Dashboard](https://app.supabase.com)
+2. Select your project from the project list
+3. In the left sidebar, click **Settings** (gear icon)
+4. Click **Database** in the settings menu
+
+**Step 2: Locate Connection Pooling Section**
+
+1. Scroll down to the **Connection Pooling** section (typically below "Connection Info")
+2. You should see:
+   - **Connection pooling enabled** toggle switch
+   - **Pool Mode** dropdown
+   - **Connection string** for the pooler
+
+**Step 3: Verify Connection Pooling Settings**
+
+Check the following configuration:
+
+| Setting | Expected Value | Description |
+|---------|---------------|-------------|
+| **Connection pooling enabled** | ✅ ON (green toggle) | If OFF, pooler endpoint won't work |
+| **Pool Mode** | **Transaction** | Recommended for web apps; Session mode for long-running operations |
+| **Host** | `aws-X-REGION.pooler.supabase.com` | Region-specific pooler endpoint |
+| **Port** | `6543` | Transaction pooler port (NOT 5432) |
+| **Database** | `postgres` | Default database name |
+| **User** | `postgres.YOUR_PROJECT_REF` | Includes project reference suffix |
+
+**Visual Verification Checklist**:
+
+- ✅ **Toggle is GREEN** and shows "Enabled"
+- ✅ **Pool Mode** shows "Transaction" (or "Session" if intentionally using that mode)
+- ✅ **Connection string** shown contains port `6543`
+- ✅ **Username** format is `postgres.PROJECT_REF` (not just `postgres`)
+
+**If Connection Pooling is Disabled**:
+
+1. Click the **toggle switch** to enable it
+2. Wait 10-15 seconds for the pooler to initialize
+3. Copy the new connection string from the dashboard
+4. Update your `DATABASE_URL` environment variable in Render
+5. Restart your Render service
+
+**Step 4: Copy the Correct Connection String**
+
+1. In the **Connection Pooling** section, locate the **Connection string** field
+2. Click the **Copy** icon next to the connection string
+3. The string should look like:
+   ```
+   postgres://postgres.YOUR_PROJECT_REF:[YOUR-PASSWORD]@aws-0-REGION.pooler.supabase.com:6543/postgres
+   ```
+4. Replace `[YOUR-PASSWORD]` with your actual database password
+5. Use this exact string as your `DATABASE_URL` in Render
+
+**Common Mistakes to Avoid**:
+
+- ❌ Using direct connection string (port 5432) when you need pooler (port 6543)
+- ❌ Using username `postgres` instead of `postgres.PROJECT_REF`
+- ❌ Copying old connection string after enabling pooler (refresh the page)
+- ❌ Forgetting to restart your application after changing DATABASE_URL
+
+#### Testing Connectivity to Supabase Endpoints
+
+Use these commands to test connectivity to both Supabase connection modes. Run these tests from your Render shell or local environment.
+
+**Testing Transaction Pooler (Port 6543)**
+
+**Using telnet:**
+```bash
+# Test TCP connectivity to pooler endpoint
+telnet aws-0-eu-north-1.pooler.supabase.com 6543
+
+# Expected output (success):
+# Trying 13.48.XX.XXX...
+# Connected to aws-0-eu-north-1.pooler.supabase.com.
+# Escape character is '^]'.
+
+# Expected output (failure):
+# Trying 13.48.XX.XXX...
+# telnet: Unable to connect to remote host: Connection refused
+```
+
+**Using netcat (nc):**
+```bash
+# Test pooler connectivity with timeout
+nc -zv -w5 aws-0-eu-north-1.pooler.supabase.com 6543
+
+# Expected output (success):
+# Connection to aws-0-eu-north-1.pooler.supabase.com 6543 port [tcp/*] succeeded!
+
+# Expected output (failure):
+# nc: connect to aws-0-eu-north-1.pooler.supabase.com port 6543 (tcp) failed: Connection refused
+```
+
+**Using psql (full authentication test):**
+```bash
+# Install PostgreSQL client if needed (in Render shell)
+apt-get update && apt-get install -y postgresql-client
+
+# Test pooler connection with authentication
+psql "postgres://postgres.YOUR_PROJECT_REF:YOUR_PASSWORD@aws-0-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require"
+
+# Expected output (success):
+# psql (14.x, server 15.x)
+# SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, bits: 256)
+# Type "help" for help.
+# 
+# postgres=>
+
+# Expected output (failure - wrong password):
+# psql: error: connection to server at "aws-0-eu-north-1.pooler.supabase.com" (13.48.XX.XXX), port 6543 failed:
+# FATAL: password authentication failed for user "postgres.YOUR_PROJECT_REF"
+
+# Expected output (failure - connection refused):
+# psql: error: connection to server at "aws-0-eu-north-1.pooler.supabase.com" (13.48.XX.XXX), port 6543 failed:
+# Connection refused
+```
+
+**Quick verification query:**
+```bash
+# Once connected, test a simple query
+psql "postgres://postgres.YOUR_PROJECT_REF:YOUR_PASSWORD@aws-0-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require" \
+  -c "SELECT version();"
+
+# Expected output:
+#                                                version
+# -------------------------------------------------------------------------------------------------------
+#  PostgreSQL 15.1 on x86_64-pc-linux-gnu, compiled by gcc, 64-bit
+# (1 row)
+```
+
+**Testing Direct Connection (Port 5432)**
+
+**Using telnet:**
+```bash
+# Test TCP connectivity to direct database endpoint
+telnet db.abcdefghijklmnop.supabase.co 5432
+
+# Expected output (success):
+# Trying 13.48.XX.XXX...
+# Connected to db.abcdefghijklmnop.supabase.co.
+# Escape character is '^]'.
+
+# Expected output (failure - project paused):
+# Trying 13.48.XX.XXX...
+# telnet: Unable to connect to remote host: Connection refused
+```
+
+**Using netcat (nc):**
+```bash
+# Test direct connection with timeout
+nc -zv -w5 db.abcdefghijklmnop.supabase.co 5432
+
+# Expected output (success):
+# Connection to db.abcdefghijklmnop.supabase.co 5432 port [tcp/postgresql] succeeded!
+
+# Expected output (failure):
+# nc: connect to db.abcdefghijklmnop.supabase.co port 5432 (tcp) failed: Connection refused
+```
+
+**Using psql (full authentication test):**
+```bash
+# Test direct connection with authentication
+psql "postgres://postgres.YOUR_PROJECT_REF:YOUR_PASSWORD@db.abcdefghijklmnop.supabase.co:5432/postgres?sslmode=require"
+
+# Expected output (success):
+# psql (14.x, server 15.x)
+# SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, bits: 256)
+# Type "help" for help.
+# 
+# postgres=>
+```
+
+**Comparative Test (Both Endpoints)**
+
+```bash
+# Test both endpoints simultaneously to compare
+echo "Testing Pooler (6543)..."
+nc -zv -w5 aws-0-eu-north-1.pooler.supabase.com 6543
+
+echo "Testing Direct (5432)..."
+nc -zv -w5 db.abcdefghijklmnop.supabase.co 5432
+
+# Interpretation:
+# Both succeed → Both connection modes available
+# Only pooler succeeds → Project may be paused; use pooler
+# Only direct succeeds → Connection pooling disabled; enable it or use direct
+# Both fail → Network issue, project suspended, or wrong hostnames
+```
+
+**Troubleshooting Test Failures**:
+
+| Test Result | Port 6543 (Pooler) | Port 5432 (Direct) | Diagnosis | Solution |
+|-------------|-------------------|-------------------|-----------|----------|
+| ✅ Success | ✅ Connected | ✅ Connected | All healthy | Use pooler (6543) for production |
+| ⚠️ Partial | ✅ Connected | ❌ Refused | Direct connection disabled or project paused | Use pooler mode; verify project is active |
+| ⚠️ Partial | ❌ Refused | ✅ Connected | Connection pooling disabled | Enable pooling in dashboard or use direct |
+| ❌ Failure | ❌ Refused | ❌ Refused | Network issue or project suspended | Check DNS, firewall, project status |
+
+#### Supabase Project States and Connection Availability
+
+Supabase projects can exist in different states that affect database connectivity. Understanding these states helps diagnose connection failures.
+
+**Project State: Active**
+
+- **Status**: Project is running normally
+- **Pooler (6543)**: ✅ Available (if enabled)
+- **Direct (5432)**: ✅ Available
+- **Indicators in Dashboard**:
+  - Green "Active" badge on project card
+  - Database shows "Healthy" status
+  - No warning banners
+- **Connection Behavior**:
+  - Both connection modes work normally
+  - Low latency, fast connection establishment
+  - Queries execute successfully
+
+**Project State: Paused (Due to Inactivity)**
+
+- **Status**: Project auto-paused after 7 days of inactivity (Free tier only)
+- **Pooler (6543)**: ⚠️ **May work** with auto-resume behavior
+- **Direct (5432)**: ❌ **Connection Refused** until resumed
+- **Indicators in Dashboard**:
+  - Yellow/Orange "Paused" badge
+  - Banner: "This project has been paused due to inactivity"
+  - "Resume Project" button visible
+- **Connection Behavior**:
+  - **Direct Connection (5432)**:
+    ```
+    Connection refused
+    FATAL: the database system is starting up
+    ```
+  - **Pooler Connection (6543)**:
+    - First connection may timeout (30-60 seconds) while project resumes
+    - Subsequent connections work normally
+    - Application may experience `HikariPool - Connection is not available, request timed out`
+- **Resolution**:
+  1. Click **Resume Project** in Supabase dashboard
+  2. Wait 30-60 seconds for database to start
+  3. Test connectivity again
+  4. Consider upgrading to Pro tier to disable auto-pause
+
+**Project State: Suspended (Billing Issues)**
+
+- **Status**: Project suspended due to unpaid invoices or plan limits exceeded
+- **Pooler (6543)**: ❌ **Connection Refused**
+- **Direct (5432)**: ❌ **Connection Refused**
+- **Indicators in Dashboard**:
+  - Red "Suspended" badge
+  - Banner: "Your project has been suspended"
+  - Payment required to reactivate
+- **Connection Behavior**:
+  - All connection attempts fail immediately:
+    ```
+    Connection refused
+    could not connect to server: Connection refused
+    ```
+  - No auto-resume behavior
+  - Application logs show persistent connection failures
+- **Resolution**:
+  1. Go to **Organization Settings** → **Billing**
+  2. Resolve outstanding payment issues
+  3. Contact Supabase support if needed
+  4. Project will resume within 5-10 minutes after resolution
+
+**Project State: Upgrading/Maintenance**
+
+- **Status**: Project undergoing planned maintenance or upgrade
+- **Pooler (6543)**: ⚠️ **Intermittent availability**
+- **Direct (5432)**: ⚠️ **Intermittent availability**
+- **Indicators in Dashboard**:
+  - Blue "Maintenance" banner
+  - Scheduled maintenance notification
+- **Connection Behavior**:
+  - Brief connection interruptions (1-5 seconds)
+  - Automatic reconnection usually works
+  - HikariCP handles retries transparently
+- **Resolution**:
+  - Wait for maintenance window to complete
+  - Application should auto-recover
+  - Monitor logs for connection pool recovery
+
+**Connection Mode Failure Matrix by Project State**
+
+| Project State | Pooler (6543) | Direct (5432) | Recommended Action |
+|--------------|---------------|---------------|--------------------|
+| **Active** | ✅ Works | ✅ Works | Use pooler for production |
+| **Paused (Free tier)** | ⚠️ Auto-resumes (slow) | ❌ Fails | Resume project; upgrade to Pro to disable auto-pause |
+| **Suspended (Billing)** | ❌ Fails | ❌ Fails | Resolve billing issue |
+| **Maintenance** | ⚠️ Intermittent | ⚠️ Intermittent | Wait for completion; connection pool auto-recovers |
+| **Pooling Disabled** | ❌ Fails | ✅ Works | Enable pooling or use direct connection |
+
+**Checking Project State Programmatically**:
+
+```bash
+# From Render shell or local terminal
+# Test if project is responsive
+curl -s -o /dev/null -w "%{http_code}" https://YOUR_PROJECT_REF.supabase.co/rest/v1/
+
+# Expected responses:
+# 200 → Project is active
+# 401/403 → Project is active (authentication required)
+# 503 → Project may be paused or in maintenance
+# Connection timeout → Project suspended or network issue
+```
+
+#### Choosing Between Pooler and Direct Connection: Decision Guide
+
+Use this decision tree to determine the optimal connection mode for your deployment:
+
+**Decision Tree**
+
+```
+START: Which connection mode should I use?
+│
+├─ Q1: What platform are you deploying to?
+│  │
+│  ├─ Serverless (AWS Lambda, Vercel, Netlify Functions)
+│  │  └─→ ✅ USE POOLER (6543) - Transaction Mode
+│  │      Reason: Serverless functions create many concurrent connections;
+│  │              pooler prevents exhausting database connection limits
+│  │
+│  ├─ Platform with connection limits (Render Free, Heroku Free/Hobby)
+│  │  └─→ ✅ USE POOLER (6543) - Transaction Mode
+│  │      Reason: Connection pooling reduces total connections needed
+│  │
+│  ├─ Standard web server (Render Pro, dedicated servers, VPS)
+│  │  └─→ Continue to Q2
+│  │
+│  └─ Background workers, cron jobs, data migrations
+│     └─→ Continue to Q3
+│
+├─ Q2: Does your application need session-level PostgreSQL features?
+│  │
+│  ├─ YES - Need prepared statements, temp tables, session variables, LISTEN/NOTIFY
+│  │  └─→ ✅ USE DIRECT (5432) - Session Mode
+│  │      Configuration: maximum-pool-size=20, minimum-idle=5
+│  │      Monitor: Keep pool size within plan limits (60-500 connections)
+│  │
+│  └─ NO - Standard CRUD operations, REST API, stateless transactions
+│     └─→ ✅ USE POOLER (6543) - Transaction Mode
+│         Configuration: maximum-pool-size=10, minimum-idle=2
+│         Benefit: Better scalability, more efficient resource usage
+│
+└─ Q3: What type of database operations are you running?
+   │
+   ├─ Long-running queries (>30 seconds), analytics, reports
+   │  └─→ ✅ USE DIRECT (5432) - Session Mode
+   │      Reason: Transaction pooler may timeout long-running operations
+   │
+   ├─ Database migrations, schema changes, admin operations
+   │  └─→ ✅ USE DIRECT (5432) - Session Mode
+   │      Reason: Requires full PostgreSQL feature set and DDL operations
+   │
+   └─ Short transactions, API endpoints, typical web app queries
+      └─→ ✅ USE POOLER (6543) - Transaction Mode
+          Reason: Optimal for high-throughput, short-lived transactions
+```
+
+**Quick Reference Matrix**
+
+| Use Case | Connection Mode | Port | URL Pattern | Pool Size | Rationale |
+|----------|----------------|------|-------------|-----------|-----------|
+| **Production web app (Render)** | Pooler | 6543 | `aws-X-REGION.pooler.supabase.com` | 10 max | High concurrency, connection efficiency |
+| **Serverless functions** | Pooler | 6543 | `aws-X-REGION.pooler.supabase.com` | 5-10 max | Many concurrent cold starts |
+| **Background workers** | Direct | 5432 | `db.PROJECT_REF.supabase.co` | 5-10 max | Long-running operations, full features |
+| **Database migrations** | Direct | 5432 | `db.PROJECT_REF.supabase.co` | 1-3 max | DDL operations, schema changes |
+| **Analytics/Reporting** | Direct | 5432 | `db.PROJECT_REF.supabase.co` | 5-10 max | Long-running queries |
+| **Development (local)** | Direct or H2 | 5432 or N/A | `localhost:5432` or in-memory | 5 max | Debugging, testing |
+| **Microservices (many instances)** | Pooler | 6543 | `aws-X-REGION.pooler.supabase.com` | 5-10 max per instance | Distributed connection pooling |
+| **Admin dashboard** | Direct | 5432 | `db.PROJECT_REF.supabase.co` | 10 max | Session features, ad-hoc queries |
+
+**Configuration Examples by Platform**
+
+**Render.com (Recommended: Pooler)**
+
+```bash
+# Render Environment Variables
+DATABASE_URL=postgres://postgres.PROJECT_REF:PASSWORD@aws-0-eu-north-1.pooler.supabase.com:6543/postgres
+
+# application-prod.properties
+spring.datasource.hikari.maximum-pool-size=10
+spring.datasource.hikari.minimum-idle=2
+spring.datasource.hikari.connection-timeout=30000
+```
+
+**AWS Lambda (Required: Pooler)**
+
+```bash
+# Lambda Environment Variables
+DATABASE_URL=postgres://postgres.PROJECT_REF:PASSWORD@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+
+# Configuration (if using Spring Boot)
+spring.datasource.hikari.maximum-pool-size=5
+spring.datasource.hikari.minimum-idle=1
+spring.datasource.hikari.connection-timeout=20000
+```
+
+**Dedicated Server / VPS (Optional: Direct)**
+
+```bash
+# Environment Variables
+DATABASE_URL=postgres://postgres.PROJECT_REF:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres
+
+# application.properties
+spring.datasource.hikari.maximum-pool-size=20
+spring.datasource.hikari.minimum-idle=5
+spring.datasource.hikari.connection-timeout=30000
+```
+
+**Background Worker (Recommended: Direct)**
+
+```bash
+# Environment Variables
+DATABASE_URL=postgres://postgres.PROJECT_REF:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres
+
+# application-worker.properties
+spring.datasource.hikari.maximum-pool-size=5
+spring.datasource.hikari.minimum-idle=1
+spring.datasource.hikari.connection-timeout=60000
+spring.datasource.hikari.max-lifetime=1800000  # 30 minutes
+```
+
+#### Configuration and Diagnostic Integration
+
+This application provides built-in capabilities to simplify Supabase connection management and diagnostics.
+
+**DatabaseUrlEnvironmentPostProcessor - Automatic URL Conversion**
+
+The application automatically converts standard PostgreSQL URLs to JDBC format, supporting both pooler and direct connection modes:
+
+```
+# You provide (any of these formats):
+DATABASE_URL=postgres://postgres.myproject:pass@aws-0-eu-north-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://postgres.myproject:pass@db.myproject.supabase.co:5432/postgres
+
+# Application automatically converts to:
+jdbc:postgresql://aws-0-eu-north-1.pooler.supabase.com:6543/postgres?user=postgres.myproject&password=pass
+jdbc:postgresql://db.myproject.supabase.co:5432/postgres?user=postgres.myproject&password=pass
+```
+
+**Check conversion logs** during application startup:
+
+```
+INFO  - DatabaseUrlEnvironmentPostProcessor: Original DATABASE_URL detected: postgres://postgres.myproject:***@aws-0-eu-north-1.pooler.supabase.com:6543/postgres
+INFO  - DatabaseUrlEnvironmentPostProcessor: Converted to JDBC URL with encoded credentials
+```
+
+**Diagnostic Capabilities**
+
+1. **Verify which endpoint is being used**:
+   ```bash
+   # Check Render logs during application startup
+   grep "DatabaseUrlEnvironmentPostProcessor" render-logs.txt
+   
+   # Look for HikariCP configuration
+   grep "HikariConfig" render-logs.txt | grep "jdbcUrl"
+   ```
+
+2. **Identify connection failures by port**:
+   ```bash
+   # Search for connection errors showing port numbers
+   grep -E "port (5432|6543)" application.log
+   
+   # Find which endpoint failed
+   grep -E "(pooler\.supabase\.com|db\..*\.supabase\.co)" application.log
+   ```
+
+3. **Monitor connection pool health**:
+   ```bash
+   # Enable debug logging temporarily
+   LOGGING_LEVEL_COM_ZAXXER_HIKARI=DEBUG
+   
+   # Check pool statistics in logs
+   grep "HikariPool.*stats" application.log
+   ```
+
+**Fallback Behavior**
+
+If `DATABASE_URL` is not set or connection fails, the application behavior depends on the active profile:
+
+- **dev profile**: Falls back to H2 in-memory database
+  ```properties
+  # Automatic fallback - no configuration needed
+  # Application logs will show:
+  INFO  - Using H2 in-memory database (dev profile)
+  ```
+
+- **prod profile**: Application fails to start with clear error message
+  ```
+  ERROR - Failed to configure a DataSource: 'url' attribute is not specified
+  ```
+
+**Environment Variable Reference**
+
+| Variable | Purpose | Example | Required |
+|----------|---------|---------|----------|
+| `DATABASE_URL` | Primary database connection | `postgres://user:pass@host:6543/db` | Yes (prod) |
+| `DB_USERNAME` | Override username (optional) | `postgres.myproject` | No |
+| `DB_PASSWORD` | Override password (optional) | `my_secure_password` | No |
+| `SPRING_PROFILES_ACTIVE` | Activate configuration profile | `prod` | Yes |
+| `LOGGING_LEVEL_COM_ZAXXER_HIKARI` | Connection pool debug logs | `DEBUG` | No (debugging) |
+
+**Testing Connection Configuration**
+
+From Render shell, verify your configuration:
+
+```bash
+# 1. Check environment variable is set correctly
+echo $DATABASE_URL
+# Should show: postgres://postgres.PROJECT:***@aws-0-REGION.pooler.supabase.com:6543/postgres
+
+# 2. Extract and verify connection components
+echo $DATABASE_URL | grep -oE ":[0-9]+"
+# Should show: :6543 (pooler) or :5432 (direct)
+
+# 3. Test connection with psql using exact DATABASE_URL
+psql "$DATABASE_URL?sslmode=require" -c "SELECT 1;"
+# Should return: 1 row with value 1
+
+# 4. Check application startup logs
+grep -E "(DatabaseUrlEnvironmentPostProcessor|HikariConfig)" /var/log/application.log
+
+# 5. Verify SSL connection
+psql "$DATABASE_URL?sslmode=require" -c "\conninfo"
+# Should show: SSL connection (protocol: TLSv1.3, ...)
+```
+
+**Troubleshooting Checklist for Connection Refused Errors**:
+
+- [ ] **1. Verify port number**: Check logs for `6543` (pooler) vs `5432` (direct)
+- [ ] **2. Check Supabase dashboard**: Confirm connection pooling is enabled (if using port 6543)
+- [ ] **3. Test with telnet/nc**: Verify TCP connectivity to the specific port
+- [ ] **4. Test with psql**: Confirm authentication and SSL work correctly
+- [ ] **5. Check project state**: Ensure project is not paused or suspended
+- [ ] **6. Verify DATABASE_URL format**: Correct hostname pattern for chosen mode
+- [ ] **7. Review conversion logs**: Check `DatabaseUrlEnvironmentPostProcessor` output
+- [ ] **8. Monitor pool exhaustion**: Look for timeout messages in HikariCP logs
+- [ ] **9. Validate SSL configuration**: Ensure `sslmode=require` is present
+- [ ] **10. Consider connection mode switch**: Try alternative mode if persistent issues
+
+**Additional Resources**:
+- **Earlier section**: [Understanding Supabase Connection Modes](#understanding-supabase-connection-modes) - Detailed explanation of pooler vs direct
+- **Earlier section**: [Testing Network Connectivity from Render](#testing-network-connectivity-from-render) - Comprehensive connectivity tests
+- **Earlier section**: [Troubleshooting Pooler Connection Failures](#troubleshooting-pooler-connection-failures) - Pool exhaustion diagnosis
+- **Supabase Docs**: [Connection Pooling Guide](https://supabase.com/docs/guides/database/connecting-to-postgres#connection-pooler)
+
 ## Performance Optimization
 
 ### Database Connection Pool
