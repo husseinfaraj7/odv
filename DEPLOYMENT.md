@@ -291,27 +291,27 @@ postgres://user:password@hostname:5432/database?sslmode=require
 ```bash
 # Raw password: MyP@ss#2024
 # Use it directly in DATABASE_URL:
-DATABASE_URL=postgres://postgres.pejuystijjkjxjctieyb:MyP@ss#2024@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgres://postgres.YOUR_PROJECT_REF:MyP@ss#2024@aws-0-REGION.pooler.supabase.com:6543/postgres
 ```
 
 **What happens internally:**
 1. `DatabaseUrlEnvironmentPostProcessor` extracts password: `MyP@ss#2024`
 2. Automatically URL-encodes it: `MyP%40ss%232024`
-3. Constructs JDBC URL: `jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres?user=postgres.pejuystijjkjxjctieyb&password=MyP%40ss%232024`
+3. Constructs JDBC URL: `jdbc:postgresql://aws-0-REGION.pooler.supabase.com:6543/postgres?user=postgres.YOUR_PROJECT_REF&password=MyP%40ss%232024`
 4. ✅ Authentication succeeds
 
 #### ❌ Wrong: Manually URL-Encoded Password
 
 ```bash
 # If you manually encode the password:
-DATABASE_URL=postgres://postgres.pejuystijjkjxjctieyb:MyP%40ss%232024@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgres://postgres.YOUR_PROJECT_REF:MyP%40ss%232024@aws-0-REGION.pooler.supabase.com:6543/postgres
 ```
 
 **What happens internally:**
 1. `DatabaseUrlEnvironmentPostProcessor` extracts password: `MyP%40ss%232024` (already encoded)
 2. Encodes it again: `MyP%2540ss%25232024` (double-encoded!)
 3. Constructs JDBC URL with double-encoded password
-4. ❌ Authentication fails with error: `password authentication failed for user "postgres.pejuystijjkjxjctieyb"`
+4. ❌ Authentication fails with error: `password authentication failed for user "postgres.YOUR_PROJECT_REF"`
 
 #### Example Scenarios
 
@@ -319,22 +319,22 @@ DATABASE_URL=postgres://postgres.pejuystijjkjxjctieyb:MyP%40ss%232024@aws-1-eu-n
 ```bash
 # Password: Test@123#DB$Pass
 # ✅ Correct usage:
-DATABASE_URL=postgres://postgres.pejuystijjkjxjctieyb:Test@123#DB$Pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgres://postgres.YOUR_PROJECT_REF:Test@123#DB$Pass@aws-0-REGION.pooler.supabase.com:6543/postgres
 
 # ❌ Wrong (manual encoding causes double-encoding):
-DATABASE_URL=postgres://postgres.pejuystijjkjxjctieyb:Test%40123%23DB%24Pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgres://postgres.YOUR_PROJECT_REF:Test%40123%23DB%24Pass@aws-0-REGION.pooler.supabase.com:6543/postgres
 ```
 
 **Scenario 2: Connection Error Messages**
 
 ```
 # Double-encoded password error (from manual encoding):
-ERROR: password authentication failed for user "postgres.pejuystijjkjxjctieyb"
-FATAL: password authentication failed for user "postgres.pejuystijjkjxjctieyb"
+ERROR: password authentication failed for user "postgres.YOUR_PROJECT_REF"
+FATAL: password authentication failed for user "postgres.YOUR_PROJECT_REF"
 Caused by: org.postgresql.util.PSQLException: FATAL: password authentication failed
 
 # Log shows double-encoded password in JDBC URL:
-jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres?user=postgres.pejuystijjkjxjctieyb&password=MyP%2540ss%25232024
+jdbc:postgresql://aws-0-REGION.pooler.supabase.com:6543/postgres?user=postgres.YOUR_PROJECT_REF&password=MyP%2540ss%25232024
                                                                                                                       ^^^^^ double-encoded
 ```
 
@@ -354,22 +354,22 @@ Before deploying, verify connectivity to your Supabase database:
 1. Go to Supabase Dashboard → Settings → Database
 2. Find **Connection Pooling** section
 3. Note the connection details:
-   - Host: `aws-1-eu-north-1.pooler.supabase.com` (eu-north-1 region)
+   - Host: `aws-0-REGION.pooler.supabase.com` (eu-north-1 region)
    - Port: `6543` (transaction pooler)
-   - Username: `postgres.pejuystijjkjxjctieyb` (includes project reference)
+   - Username: `postgres.YOUR_PROJECT_REF` (includes project reference)
    - Password: Your raw database password
 
 **Step 2: Test Connectivity with psql**
 
 ```bash
 # Use raw password directly (psql handles encoding)
-psql "postgres://postgres.pejuystijjkjxjctieyb:YOUR_RAW_PASSWORD@aws-1-eu-north-1.pooler.supabase.com:6543/postgres"
+psql "postgres://postgres.YOUR_PROJECT_REF:YOUR_RAW_PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres"
 
 # Alternative format with connection parameters
-psql -h aws-1-eu-north-1.pooler.supabase.com -p 6543 -U postgres.pejuystijjkjxjctieyb -d postgres
+psql -h aws-0-REGION.pooler.supabase.com -p 6543 -U postgres.YOUR_PROJECT_REF -d postgres
 
 # Test with SSL requirement
-psql "postgres://postgres.pejuystijjkjxjctieyb:YOUR_RAW_PASSWORD@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require"
+psql "postgres://postgres.YOUR_PROJECT_REF:YOUR_RAW_PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require"
 ```
 
 **Expected output (success):**
@@ -385,11 +385,11 @@ postgres=>
 
 ```bash
 # Test if pooler port is reachable
-telnet aws-1-eu-north-1.pooler.supabase.com 6543
+telnet aws-0-REGION.pooler.supabase.com 6543
 
 # Expected output (success):
 # Trying 13.48.XXX.XXX...
-# Connected to aws-1-eu-north-1.pooler.supabase.com.
+# Connected to aws-0-REGION.pooler.supabase.com.
 # Escape character is '^]'.
 ```
 
@@ -397,10 +397,10 @@ telnet aws-1-eu-north-1.pooler.supabase.com 6543
 
 ```bash
 # Test TCP connection with timeout
-nc -zv -w5 aws-1-eu-north-1.pooler.supabase.com 6543
+nc -zv -w5 aws-0-REGION.pooler.supabase.com 6543
 
 # Expected output (success):
-# Connection to aws-1-eu-north-1.pooler.supabase.com 6543 port [tcp/*] succeeded!
+# Connection to aws-0-REGION.pooler.supabase.com 6543 port [tcp/*] succeeded!
 ```
 
 #### Troubleshooting Authentication Errors
@@ -436,7 +436,7 @@ If you don't see these messages, verify:
 #### 2. Database Connection Issues
 - **Password Encoding**: Use raw passwords only - manual encoding causes double-encoding failures (see Password Encoding section)
 - **Network Access**: Verify database allows connections from Render IPs
-- **Credentials**: Double-check username format (e.g., `postgres.pejuystijjkjxjctieyb` for Supabase)
+- **Credentials**: Double-check username format (e.g., `postgres.YOUR_PROJECT_REF` for Supabase)
 - **URL Format**: Ensure using correct format (see DATABASE_URL Formatting Guide above)
 - **Port Number**: Use 6543 for Supabase pooler or 5432 for direct connection
 
@@ -544,7 +544,7 @@ Verify that Supabase hostnames resolve correctly:
 nslookup aws-0-us-west-1.pooler.supabase.com
 
 # Test direct connection hostname resolution
-nslookup db.pejuystijjkjxjctieyb.supabase.co
+nslookup db.YOUR_PROJECT_REF.supabase.co
 
 # Alternative DNS test
 host aws-0-us-west-1.pooler.supabase.com
@@ -590,7 +590,7 @@ timeout 5 nc -vz aws-0-us-west-1.pooler.supabase.com 6543
 **Using telnet (Port 5432 - Direct Connection)**:
 ```bash
 # Test direct database connection
-telnet db.pejuystijjkjxjctieyb.supabase.co 5432
+telnet db.YOUR_PROJECT_REF.supabase.co 5432
 
 # Another example with different project
 telnet db.abcdefghijklmnop.supabase.co 5432
@@ -599,7 +599,7 @@ telnet db.abcdefghijklmnop.supabase.co 5432
 **Using nc/netcat (Port 5432 - Direct Connection)**:
 ```bash
 # Test direct connection
-nc -zv -w5 db.pejuystijjkjxjctieyb.supabase.co 5432
+nc -zv -w5 db.YOUR_PROJECT_REF.supabase.co 5432
 ```
 
 **Expected Output (Success)**:
@@ -630,13 +630,13 @@ If TCP connectivity works, test the actual PostgreSQL connection:
 apt-get update && apt-get install -y postgresql-client
 
 # Test connection with psql (pooler)
-psql "postgres://postgres.pejuystijjkjxjctieyb:YOUR_PASSWORD@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+psql "postgres://postgres.YOUR_PROJECT_REF:YOUR_PASSWORD@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
 
 # Test connection with psql (direct)
-psql "postgres://postgres.pejuystijjkjxjctieyb:YOUR_PASSWORD@db.pejuystijjkjxjctieyb.supabase.co:5432/postgres"
+psql "postgres://postgres.YOUR_PROJECT_REF:YOUR_PASSWORD@db.YOUR_PROJECT_REF.supabase.co:5432/postgres"
 
 # Test with explicit SSL mode
-psql "postgres://postgres.pejuystijjkjxjctieyb:YOUR_PASSWORD@aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require"
+psql "postgres://postgres.YOUR_PROJECT_REF:YOUR_PASSWORD@aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require"
 ```
 
 **Expected Output (Success)**:
@@ -864,7 +864,7 @@ postgres://postgres.PROJECT_REF:PASSWORD@aws-1-REGION.pooler.supabase.com:6543/p
 
 **Europe (North) - Stockholm:**
 ```
-postgres://postgres.myproject:password@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+postgres://postgres.myproject:password@aws-0-REGION.pooler.supabase.com:6543/postgres
 ```
 
 **Europe (West) - Ireland:**
@@ -927,20 +927,20 @@ org.postgresql.util.PSQLException: The connection attempt failed.
 echo $DATABASE_URL
 
 # Transaction mode MUST use port 6543:
-postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres  # ✅ Correct
+postgres://user:pass@aws-0-REGION.pooler.supabase.com:6543/postgres  # ✅ Correct
 
 # Session mode (direct connection) uses port 5432:
 postgres://user:pass@db.projectref.supabase.co:5432/postgres  # ✅ Correct
 
 # Common mistakes:
-postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:5432/postgres  # ❌ Wrong port for pooler
+postgres://user:pass@aws-0-REGION.pooler.supabase.com:5432/postgres  # ❌ Wrong port for pooler
 postgres://user:pass@db.projectref.supabase.co:6543/postgres             # ❌ Wrong port for direct
 ```
 
 **Quick Test:**
 ```bash
 # Test pooler connectivity (port 6543)
-nc -zv -w5 aws-1-eu-north-1.pooler.supabase.com 6543
+nc -zv -w5 aws-0-REGION.pooler.supabase.com 6543
 
 # Test direct connectivity (port 5432)
 nc -zv -w5 db.yourproject.supabase.co 5432
@@ -963,13 +963,13 @@ Supabase **requires SSL** for all connections. Ensure your DATABASE_URL includes
 
 ```bash
 # ✅ Correct - SSL enabled
-postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require
+postgres://user:pass@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require
 
 # ❌ Incorrect - SSL disabled (will fail)
-postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=disable
+postgres://user:pass@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=disable
 
 # ⚠️ May work but insecure
-postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+postgres://user:pass@aws-0-REGION.pooler.supabase.com:6543/postgres
 ```
 
 **For Spring Boot applications**, add SSL parameters to `application-prod.properties`:
@@ -992,11 +992,11 @@ spring.datasource.hikari.data-source-properties.sslmode=require
 apt-get update && apt-get install -y postgresql-client
 
 # Test connection with SSL
-psql "postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require"
+psql "postgres://user:pass@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require"
 
 # Check SSL status after connecting
 postgres=> \conninfo
-You are connected to database "postgres" as user "postgres.myproject" on host "aws-1-eu-north-1.pooler.supabase.com" (address "x.x.x.x") at port "6543".
+You are connected to database "postgres" as user "postgres.myproject" on host "aws-0-REGION.pooler.supabase.com" (address "x.x.x.x") at port "6543".
 SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, bits: 256, compression: off)
 ```
 
@@ -1140,7 +1140,7 @@ spring.datasource.hikari.max-lifetime=600000       # 10 minutes max lifetime
 
 ```bash
 # From Render shell, test connection acquisition speed:
-time psql "postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require" -c "SELECT 1"
+time psql "postgres://user:pass@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require" -c "SELECT 1"
 
 # Should complete in < 1 second. If slower:
 # - Pooler may be under heavy load
@@ -1160,7 +1160,7 @@ real    0m0.234s  # < 1 second = healthy
 
 **Problem Indicator (Unhealthy):**
 ```bash
-psql: error: connection to server at "aws-1-eu-north-1.pooler.supabase.com" (x.x.x.x), port 6543 failed: 
+psql: error: connection to server at "aws-0-REGION.pooler.supabase.com" (x.x.x.x), port 6543 failed: 
 FATAL: remaining connection slots are reserved
 
 real    0m20.045s  # 20+ seconds = pool exhausted
