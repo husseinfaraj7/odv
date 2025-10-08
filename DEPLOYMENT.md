@@ -440,12 +440,120 @@ If you don't see these messages, verify:
 - **URL Format**: Ensure using correct format (see DATABASE_URL Formatting Guide above)
 - **Port Number**: Use 6543 for Supabase pooler or 5432 for direct connection
 
-#### 3. Email Service Issues
+#### 3. HikariCP Property Override Issue: "Driver claims to not accept jdbcUrl, postgresql://"
+
+**Problem**: When using `spring.datasource.hikari.jdbc-url` in your application properties, HikariCP bypasses Spring Boot's normal property binding mechanism and ignores the converted JDBC URL from `DatabaseUrlEnvironmentPostProcessor`. Instead, it uses the raw `DATABASE_URL` environment variable directly, which results in the error:
+
+```
+java.sql.SQLException: Driver claims to not accept jdbcUrl, postgresql://hostname:port/database
+```
+
+**Root Cause**:
+
+Spring Boot's property binding follows a hierarchical resolution order. When `spring.datasource.hikari.jdbc-url` is explicitly set, it takes precedence over `spring.datasource.url`, causing HikariCP to use the unconverted DATABASE_URL value (in `postgresql://` format) instead of the properly converted JDBC URL (in `jdbc:postgresql://` format).
+
+Here's what happens:
+
+1. **With hikari.jdbc-url property defined**:
+   ```
+   DATABASE_URL=postgresql://user:pass@host:5432/db
+   spring.datasource.url=${DATABASE_URL}              # Converted by DatabaseUrlEnvironmentPostProcessor
+   spring.datasource.hikari.jdbc-url=${DATABASE_URL}  # NOT converted - used directly by HikariCP
+   
+   Result: HikariCP uses postgresql://... ❌ ERROR
+   ```
+
+2. **Without hikari.jdbc-url property** (correct):
+   ```
+   DATABASE_URL=postgresql://user:pass@host:5432/db
+   spring.datasource.url=${DATABASE_URL}              # Converted by DatabaseUrlEnvironmentPostProcessor
+   
+   Result: HikariCP uses jdbc:postgresql://... ✅ SUCCESS
+   ```
+
+**Solution**: Remove or comment out the `spring.datasource.hikari.jdbc-url` property from your `application.properties` or `application-prod.properties` file:
+
+```properties
+# ❌ Remove or comment this line:
+# spring.datasource.hikari.jdbc-url=${DATABASE_URL}
+
+# ✅ Keep only this (HikariCP will automatically use spring.datasource.url):
+spring.datasource.url=${DATABASE_URL}
+```
+
+**Why This Works**:
+
+When `spring.datasource.hikari.jdbc-url` is not explicitly set, HikariCP falls back to using `spring.datasource.url`, which has been properly converted by the `DatabaseUrlEnvironmentPostProcessor` from `postgresql://` to `jdbc:postgresql://` format.
+
+**Verification Steps**:
+
+1. **Check your application properties** for any hikari-specific URL configuration:
+   ```bash
+   # Search for hikari.jdbc-url in your properties files
+   grep -r "hikari.jdbc-url" src/main/resources/
+   ```
+
+2. **Enable HikariCP debug logging** to see what URL is being used:
+   ```properties
+   # Add to application.properties temporarily
+   logging.level.com.zaxxer.hikari=DEBUG
+   logging.level.com.zaxxer.hikari.HikariConfig=DEBUG
+   ```
+
+3. **Check startup logs** for HikariCP initialization messages:
+   ```
+   # ✅ Correct format (should see):
+   DEBUG HikariConfig - jdbcUrl.........................jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+   INFO  HikariDataSource - HikariPool-1 - Starting...
+   INFO  HikariPool - HikariPool-1 - Start completed.
+   
+   # ❌ Incorrect format (if you see this, hikari.jdbc-url is still set):
+   DEBUG HikariConfig - jdbcUrl.........................postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+   ERROR HikariPool - Exception during pool initialization
+   java.sql.SQLException: Driver claims to not accept jdbcUrl, postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+   ```
+
+4. **Search for "HikariConfig" in logs** during application startup:
+   ```bash
+   # If deploying to Render, check logs for:
+   grep -i "HikariConfig" render-logs.txt
+   grep -i "jdbcUrl" render-logs.txt
+   ```
+
+**Example Log Comparison**:
+
+**Incorrect Configuration** (with `hikari.jdbc-url`):
+```
+2024-01-15 10:23:45.123 INFO  - DatabaseUrlEnvironmentPostProcessor: Original DATABASE_URL: postgresql://user:pass@host:5432/db
+2024-01-15 10:23:45.124 INFO  - DatabaseUrlEnvironmentPostProcessor: Converted to JDBC URL: jdbc:postgresql://host:5432/db?user=user&password=pass
+2024-01-15 10:23:45.456 DEBUG - HikariConfig - jdbcUrl.........................postgresql://user:pass@host:5432/db
+2024-01-15 10:23:45.789 ERROR - HikariPool-1 - Exception during pool initialization
+java.sql.SQLException: Driver claims to not accept jdbcUrl, postgresql://user:pass@host:5432/db
+```
+*Note: The conversion happens, but HikariCP ignores it because `hikari.jdbc-url` bypasses `spring.datasource.url`*
+
+**Correct Configuration** (without `hikari.jdbc-url`):
+```
+2024-01-15 10:23:45.123 INFO  - DatabaseUrlEnvironmentPostProcessor: Original DATABASE_URL: postgresql://user:pass@host:5432/db
+2024-01-15 10:23:45.124 INFO  - DatabaseUrlEnvironmentPostProcessor: Converted to JDBC URL: jdbc:postgresql://host:5432/db?user=user&password=pass
+2024-01-15 10:23:45.456 DEBUG - HikariConfig - jdbcUrl.........................jdbc:postgresql://host:5432/db?user=user&password=pass
+2024-01-15 10:23:45.789 INFO  - HikariPool-1 - Starting...
+2024-01-15 10:23:46.012 INFO  - HikariPool-1 - Start completed.
+```
+*Note: HikariCP now correctly uses the converted JDBC URL from `spring.datasource.url`*
+
+**Key Points**:
+- The `hikari.jdbc-url` property has **higher precedence** than `spring.datasource.url` in Spring Boot's property binding
+- `DatabaseUrlEnvironmentPostProcessor` only converts `spring.datasource.url`, not individual HikariCP properties
+- Always use `spring.datasource.url` and let HikariCP inherit it automatically
+- Never set `spring.datasource.hikari.jdbc-url` when using the `DATABASE_URL` environment variable with non-JDBC format
+
+#### 4. Email Service Issues
 - **API Key**: Verify Brevo API key is correct and active
 - **Rate Limits**: Check if you've exceeded email service limits
 - **SMTP Configuration**: Ensure SMTP settings match Brevo requirements
 
-#### 4. Application Startup Issues
+#### 5. Application Startup Issues
 - **Environment Variables**: Verify all required variables are set
 - **Database Schema**: Ensure database tables are created (DDL_AUTO=update)
 - **Port Configuration**: Check if PORT environment variable is set correctly
