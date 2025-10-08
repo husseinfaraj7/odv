@@ -2,9 +2,10 @@ package it.odvsicilia.backend.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.InitializingBean;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
@@ -16,13 +17,11 @@ import java.sql.SQLException;
 import java.util.Arrays;
 
 @Component
+@Order(0)
 @ConditionalOnProperty(name = "database.validation.enabled", havingValue = "true", matchIfMissing = true)
-public class DatabaseValidationConfig implements InitializingBean {
+public class DatabaseValidationConfig implements ApplicationRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseValidationConfig.class);
-
-    @Value("${DATABASE_URL:}")
-    private String databaseUrl;
 
     private final DataSource dataSource;
     private final Environment environment;
@@ -33,7 +32,7 @@ public class DatabaseValidationConfig implements InitializingBean {
     }
 
     @Override
-    public void afterPropertiesSet() throws Exception {
+    public void run(ApplicationArguments args) throws Exception {
         String[] activeProfiles = environment.getActiveProfiles();
         boolean isDevOrTest = Arrays.stream(activeProfiles)
                 .anyMatch(profile -> "dev".equals(profile) || "test".equals(profile));
@@ -45,6 +44,26 @@ public class DatabaseValidationConfig implements InitializingBean {
         }
         
         logger.info("=== Starting DATABASE_URL validation ===");
+        
+        // Early validation: Check if DATABASE_URL environment variable exists
+        String rawDatabaseUrl = System.getenv("DATABASE_URL");
+        if (rawDatabaseUrl == null || rawDatabaseUrl.trim().isEmpty()) {
+            String errorMessage = "DATABASE_URL environment variable is not set.\n\n" +
+                    "REQUIRED ACTION:\n" +
+                    "1. Go to your Render dashboard: https://dashboard.render.com/\n" +
+                    "2. Select your web service\n" +
+                    "3. Navigate to the 'Environment' tab\n" +
+                    "4. Add the DATABASE_URL variable with your PostgreSQL connection string\n" +
+                    "5. The format should be: postgresql://<username>:<password>@<host>:<port>/<database>\n" +
+                    "6. Click 'Save Changes' to trigger a redeploy\n\n" +
+                    "Example: postgresql://user:pass123@db.example.supabase.co:5432/postgres\n\n" +
+                    "For Supabase databases, find this URL in:\n" +
+                    "Supabase Dashboard → Project Settings → Database → Connection String (URI)";
+            logger.error("Startup validation failed: {}", errorMessage);
+            throw new IllegalStateException(errorMessage);
+        }
+        
+        String databaseUrl = environment.getProperty("DATABASE_URL", "");
         String validatedUrl = validateDatabaseUrl(databaseUrl);
         validateDatabaseConnection(validatedUrl);
         logger.info("=== DATABASE_URL validation completed successfully ===");
@@ -150,7 +169,7 @@ public class DatabaseValidationConfig implements InitializingBean {
             logger.debug("Attempting database connection with URL: {}", maskCredentials(jdbcUrl));
             
             try (Connection connection = dataSource.getConnection()) {
-                if (connection.isValid(10)) { // 10 second timeout
+                if (connection.isValid(10)) {
                     logger.info("Database connection validation successful");
                     logger.info("Database product: {}, Version: {}", 
                             connection.getMetaData().getDatabaseProductName(),
@@ -196,10 +215,7 @@ public class DatabaseValidationConfig implements InitializingBean {
             return "null";
         }
         
-        // Mask passwords in JDBC URLs (password=xxxx)
         String masked = url.replaceAll("password=[^&]*", "password=***");
-        
-        // Mask credentials in standard postgres:// URLs (username:password@)
         masked = masked.replaceAll("://[^@:]*:[^@]*@", "://***:***@");
         
         return masked;
