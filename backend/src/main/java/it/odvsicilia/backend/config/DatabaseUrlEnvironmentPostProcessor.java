@@ -32,6 +32,8 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         }
 
         logger.info("Original DATABASE_URL detected: {}", maskPassword(databaseUrl));
+        
+        DatabaseConnectivityValidator.validateDatabaseConnectivity(databaseUrl);
 
         if (databaseUrl.startsWith("jdbc:")) {
             logger.info("DATABASE_URL is already in JDBC format, no conversion needed");
