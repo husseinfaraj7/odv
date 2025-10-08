@@ -434,7 +434,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres"));
         assertTrue(jdbcUrl.contains("user=postgres.proj123"));
-        assertTrue(jdbcUrl.contains("password=p%2540ssw%2521rd%2523special"));
+        assertTrue(jdbcUrl.contains("password=p%40ssw%21rd%23special"));
         assertTrue(jdbcUrl.contains("sslmode=require"));
     }
 

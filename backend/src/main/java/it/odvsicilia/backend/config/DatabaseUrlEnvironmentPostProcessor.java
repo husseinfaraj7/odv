@@ -7,8 +7,10 @@ import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 
+import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
@@ -214,7 +216,16 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
             int colonIndex = userInfo.indexOf(':');
             if (colonIndex != -1) {
                 user = userInfo.substring(0, colonIndex);
-                password = URLEncoder.encode(userInfo.substring(colonIndex + 1), StandardCharsets.UTF_8);
+                String rawPassword = userInfo.substring(colonIndex + 1);
+                
+                try {
+                    password = URLDecoder.decode(rawPassword, StandardCharsets.UTF_8.name());
+                } catch (UnsupportedEncodingException e) {
+                    logger.warn("Failed to decode password from DATABASE_URL. Falling back to original password value. Error: {}", e.getMessage());
+                    password = rawPassword;
+                }
+                
+                password = URLEncoder.encode(password, StandardCharsets.UTF_8);
             } else {
                 user = userInfo;
             }
