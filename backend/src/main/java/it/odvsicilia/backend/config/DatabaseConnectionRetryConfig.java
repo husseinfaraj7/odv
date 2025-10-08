@@ -8,6 +8,8 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.classify.BinaryExceptionClassifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.retry.RetryCallback;
 import org.springframework.retry.RetryContext;
@@ -55,8 +57,12 @@ public class DatabaseConnectionRetryConfig {
     }
 
     @Bean
-    public BeanPostProcessor dataSourceRetryPostProcessor(RetryTemplate databaseRetryTemplate) {
+    public BeanPostProcessor dataSourceRetryPostProcessor(RetryTemplate databaseRetryTemplate, 
+                                                         ConfigurableEnvironment environment) {
         return new BeanPostProcessor() {
+            private boolean poolerFallbackAttempted = false;
+            private boolean directConnectionFailed = false;
+            
             @Override
             public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
                 return bean;
@@ -75,18 +81,160 @@ public class DatabaseConnectionRetryConfig {
                                 logger.info("Database connection pool initialized successfully");
                                 return dataSource;
                             } catch (SQLException | CannotGetJdbcConnectionException e) {
-                                logger.error("Failed to initialize connection pool on attempt {}", 
-                                    context.getRetryCount() + 1, e);
+                                String currentUrl = dataSource.getJdbcUrl();
+                                boolean isPoolerError = isSupabasePoolerConnectionError(e, currentUrl);
+                                
+                                if (isPoolerError && !poolerFallbackAttempted) {
+                                    logger.error("SUPABASE POOLER CONNECTION FAILED on attempt {}: Connection refused to pooler endpoint", 
+                                        context.getRetryCount() + 1);
+                                    logger.error("Pooler error details: {}", e.getMessage());
+                                    logger.warn("Attempting automatic fallback from pooler to direct database connection...");
+                                    
+                                    String directUrl = convertPoolerToDirectUrl(currentUrl);
+                                    if (directUrl != null && !directUrl.equals(currentUrl)) {
+                                        poolerFallbackAttempted = true;
+                                        updateDatasourceUrl(environment, directUrl);
+                                        dataSource.setJdbcUrl(directUrl);
+                                        logger.info("Switched datasource URL from pooler endpoint to direct connection: {}", 
+                                            maskPassword(directUrl));
+                                        
+                                        dataSource.getConnection().close();
+                                        logger.info("Direct database connection established successfully after pooler failure");
+                                        return dataSource;
+                                    } else {
+                                        logger.error("Failed to convert pooler URL to direct connection URL");
+                                    }
+                                } else if (poolerFallbackAttempted) {
+                                    directConnectionFailed = true;
+                                    logger.error("DIRECT DATABASE CONNECTION FAILED on attempt {}: {}", 
+                                        context.getRetryCount() + 1, e.getMessage());
+                                } else {
+                                    logger.error("DATABASE CONNECTION FAILED on attempt {} (general connectivity issue): {}", 
+                                        context.getRetryCount() + 1, e.getMessage());
+                                }
+                                
                                 throw e;
                             }
                         });
                     } catch (Exception e) {
-                        logger.error("All retry attempts exhausted. Unable to initialize database connection pool", e);
-                        throw new IllegalStateException("Failed to initialize database connection after " + 
-                            MAX_ATTEMPTS + " attempts", e);
+                        if (poolerFallbackAttempted && directConnectionFailed) {
+                            String errorMsg = buildFailFastErrorMessage(dataSource.getJdbcUrl());
+                            logger.error(errorMsg);
+                            throw new IllegalStateException(errorMsg, e);
+                        } else {
+                            logger.error("All retry attempts exhausted. Unable to initialize database connection pool", e);
+                            throw new IllegalStateException("Failed to initialize database connection after " + 
+                                MAX_ATTEMPTS + " attempts. Check database connectivity and credentials.", e);
+                        }
                     }
                 }
                 return bean;
+            }
+            
+            private boolean isSupabasePoolerConnectionError(Throwable throwable, String jdbcUrl) {
+                if (jdbcUrl == null || !isSupabasePoolerUrl(jdbcUrl)) {
+                    return false;
+                }
+                
+                String fullMessage = getFullExceptionChain(throwable);
+                
+                boolean hasConnectionRefused = fullMessage.contains("Connection refused") || 
+                                              fullMessage.contains("Connection timed out") ||
+                                              fullMessage.contains("ConnectException");
+                
+                boolean hasPoolerPort = jdbcUrl.contains(":6543") || jdbcUrl.contains(":5432");
+                
+                return hasConnectionRefused && hasPoolerPort;
+            }
+            
+            private boolean isSupabasePoolerUrl(String url) {
+                return url != null && 
+                       (url.contains(".pooler.supabase.com") || 
+                        (url.contains(".supabase.com") && url.contains(":6543")) ||
+                        (url.contains(".supabase.co") && url.contains(":6543")));
+            }
+            
+            private String convertPoolerToDirectUrl(String poolerUrl) {
+                if (poolerUrl == null) {
+                    return null;
+                }
+                
+                Pattern poolerPattern = Pattern.compile(
+                    "(jdbc:postgresql://)(aws-\\d+-[a-z]+-[a-z]+-\\d+)\\.pooler\\.supabase\\.com:6543"
+                );
+                Matcher matcher = poolerPattern.matcher(poolerUrl);
+                
+                if (matcher.find()) {
+                    String region = matcher.group(2);
+                    String directUrl = poolerUrl.replace(
+                        region + ".pooler.supabase.com:6543",
+                        "db." + region + ".supabase.co:5432"
+                    );
+                    return directUrl;
+                }
+                
+                if (poolerUrl.contains(":6543")) {
+                    return poolerUrl.replace(":6543", ":5432");
+                }
+                
+                return null;
+            }
+            
+            private void updateDatasourceUrl(ConfigurableEnvironment environment, String newUrl) {
+                Map<String, Object> props = new HashMap<>();
+                props.put("spring.datasource.url", newUrl);
+                
+                MapPropertySource propertySource = new MapPropertySource(
+                    "poolerFallbackDatasource", props
+                );
+                
+                environment.getPropertySources().addFirst(propertySource);
+            }
+            
+            private String buildFailFastErrorMessage(String currentUrl) {
+                StringBuilder msg = new StringBuilder();
+                msg.append("\n");
+                msg.append("================================================================================\n");
+                msg.append("FAIL-FAST: DATABASE CONNECTION COMPLETELY FAILED\n");
+                msg.append("================================================================================\n");
+                msg.append("Both Supabase pooler and direct database connection attempts have failed.\n\n");
+                msg.append("Connection attempts made:\n");
+                msg.append("  1. Supabase Pooler endpoint (port 6543) - FAILED: Connection refused\n");
+                msg.append("  2. Direct database endpoint (port 5432) - FAILED: Connection refused\n\n");
+                msg.append("Possible causes:\n");
+                msg.append("  • Supabase project is paused or suspended\n");
+                msg.append("  • Database instance is not running\n");
+                msg.append("  • Network connectivity issues to Supabase infrastructure\n");
+                msg.append("  • Firewall blocking outbound connections on ports 6543 and 5432\n");
+                msg.append("  • Invalid database credentials or URL\n\n");
+                msg.append("Recommended actions:\n");
+                msg.append("  1. Check Supabase project status: https://app.supabase.com/project/[project-id]/settings/general\n");
+                msg.append("  2. Verify project is not paused (free tier projects pause after inactivity)\n");
+                msg.append("  3. Check pooler configuration: https://app.supabase.com/project/[project-id]/settings/database\n");
+                msg.append("  4. Verify DATABASE_URL environment variable is correct\n");
+                msg.append("  5. Test connectivity: telnet [hostname] 6543\n");
+                msg.append("  6. Review Supabase status page: https://status.supabase.com\n\n");
+                msg.append("Current URL: ").append(maskPassword(currentUrl)).append("\n");
+                msg.append("================================================================================\n");
+                return msg.toString();
+            }
+            
+            private String getFullExceptionChain(Throwable throwable) {
+                StringBuilder chain = new StringBuilder();
+                Throwable current = throwable;
+                while (current != null) {
+                    if (current.getMessage() != null) {
+                        chain.append(current.getMessage()).append(" ");
+                    }
+                    chain.append(current.getClass().getSimpleName()).append(" ");
+                    current = current.getCause();
+                }
+                return chain.toString();
+            }
+            
+            private String maskPassword(String url) {
+                if (url == null) return null;
+                return url.replaceAll("password=[^&\\s]+", "password=****");
             }
         };
     }
