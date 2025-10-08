@@ -282,6 +282,150 @@ postgres://user:password@hostname:5432/database
 postgres://user:password@hostname:5432/database?sslmode=require
 ```
 
+### Password Encoding in DATABASE_URL
+
+**CRITICAL**: Always use **raw passwords** (not URL-encoded) in your DATABASE_URL. The application's `DatabaseUrlEnvironmentPostProcessor` automatically handles password encoding during URL conversion. Manually encoding passwords causes **double-encoding** which results in authentication failures.
+
+#### ✅ Correct: Use Raw Password
+
+```bash
+# Raw password: MyP@ss#2024
+# Use it directly in DATABASE_URL:
+DATABASE_URL=postgres://postgres.pejuystijjkjxjctieyb:MyP@ss#2024@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+```
+
+**What happens internally:**
+1. `DatabaseUrlEnvironmentPostProcessor` extracts password: `MyP@ss#2024`
+2. Automatically URL-encodes it: `MyP%40ss%232024`
+3. Constructs JDBC URL: `jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres?user=postgres.pejuystijjkjxjctieyb&password=MyP%40ss%232024`
+4. ✅ Authentication succeeds
+
+#### ❌ Wrong: Manually URL-Encoded Password
+
+```bash
+# If you manually encode the password:
+DATABASE_URL=postgres://postgres.pejuystijjkjxjctieyb:MyP%40ss%232024@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+```
+
+**What happens internally:**
+1. `DatabaseUrlEnvironmentPostProcessor` extracts password: `MyP%40ss%232024` (already encoded)
+2. Encodes it again: `MyP%2540ss%25232024` (double-encoded!)
+3. Constructs JDBC URL with double-encoded password
+4. ❌ Authentication fails with error: `password authentication failed for user "postgres.pejuystijjkjxjctieyb"`
+
+#### Example Scenarios
+
+**Scenario 1: Password with Special Characters**
+```bash
+# Password: Test@123#DB$Pass
+# ✅ Correct usage:
+DATABASE_URL=postgres://postgres.pejuystijjkjxjctieyb:Test@123#DB$Pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+
+# ❌ Wrong (manual encoding causes double-encoding):
+DATABASE_URL=postgres://postgres.pejuystijjkjxjctieyb:Test%40123%23DB%24Pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+```
+
+**Scenario 2: Connection Error Messages**
+
+```
+# Double-encoded password error (from manual encoding):
+ERROR: password authentication failed for user "postgres.pejuystijjkjxjctieyb"
+FATAL: password authentication failed for user "postgres.pejuystijjkjxjctieyb"
+Caused by: org.postgresql.util.PSQLException: FATAL: password authentication failed
+
+# Log shows double-encoded password in JDBC URL:
+jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres?user=postgres.pejuystijjkjxjctieyb&password=MyP%2540ss%25232024
+                                                                                                                      ^^^^^ double-encoded
+```
+
+```
+# Success with raw password:
+INFO  - HikariPool-1 - Start completed.
+INFO  - Started BackendApplication in 4.235 seconds
+# Connection established successfully
+```
+
+#### Verification Steps for Supabase Connectivity
+
+Before deploying, verify connectivity to your Supabase database:
+
+**Step 1: Extract Connection Details from Supabase Dashboard**
+
+1. Go to Supabase Dashboard → Settings → Database
+2. Find **Connection Pooling** section
+3. Note the connection details:
+   - Host: `aws-1-eu-north-1.pooler.supabase.com` (eu-north-1 region)
+   - Port: `6543` (transaction pooler)
+   - Username: `postgres.pejuystijjkjxjctieyb` (includes project reference)
+   - Password: Your raw database password
+
+**Step 2: Test Connectivity with psql**
+
+```bash
+# Use raw password directly (psql handles encoding)
+psql "postgres://postgres.pejuystijjkjxjctieyb:YOUR_RAW_PASSWORD@aws-1-eu-north-1.pooler.supabase.com:6543/postgres"
+
+# Alternative format with connection parameters
+psql -h aws-1-eu-north-1.pooler.supabase.com -p 6543 -U postgres.pejuystijjkjxjctieyb -d postgres
+
+# Test with SSL requirement
+psql "postgres://postgres.pejuystijjkjxjctieyb:YOUR_RAW_PASSWORD@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require"
+```
+
+**Expected output (success):**
+```
+psql (14.x, server 15.x)
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, bits: 256)
+Type "help" for help.
+
+postgres=>
+```
+
+**Step 3: Test Network Connectivity with telnet**
+
+```bash
+# Test if pooler port is reachable
+telnet aws-1-eu-north-1.pooler.supabase.com 6543
+
+# Expected output (success):
+# Trying 13.48.XXX.XXX...
+# Connected to aws-1-eu-north-1.pooler.supabase.com.
+# Escape character is '^]'.
+```
+
+**Step 4: Test with nc (netcat)**
+
+```bash
+# Test TCP connection with timeout
+nc -zv -w5 aws-1-eu-north-1.pooler.supabase.com 6543
+
+# Expected output (success):
+# Connection to aws-1-eu-north-1.pooler.supabase.com 6543 port [tcp/*] succeeded!
+```
+
+#### Troubleshooting Authentication Errors
+
+| Error Symptom | Likely Cause | Solution |
+|---------------|--------------|----------|
+| `password authentication failed` after encoding password | Double-encoding | Use raw password in DATABASE_URL |
+| `password authentication failed` with special chars | Missing encoding (legacy systems) | Verify DatabaseUrlEnvironmentPostProcessor is active; check logs for conversion |
+| Authentication works locally but fails on Render | Environment variable whitespace/newlines | Check for extra spaces, use Render dashboard to re-enter DATABASE_URL |
+| Connection succeeds with psql but fails in app | JDBC URL construction issue | Check application logs for `DatabaseUrlEnvironmentPostProcessor` output |
+
+#### How to Verify Automatic Encoding is Working
+
+Check your application startup logs for these messages:
+
+```
+INFO  - DatabaseUrlEnvironmentPostProcessor: Original DATABASE_URL detected: postgres://...
+INFO  - DatabaseUrlEnvironmentPostProcessor: Converted to JDBC URL with encoded credentials
+```
+
+If you don't see these messages, verify:
+1. `DatabaseUrlEnvironmentPostProcessor` class exists in your project
+2. It's registered in `META-INF/spring.factories` or as a Spring component
+3. Environment variable is named exactly `DATABASE_URL` (case-sensitive)
+
 ### Common Issues
 
 #### 1. Build Failures
@@ -290,10 +434,11 @@ postgres://user:password@hostname:5432/database?sslmode=require
 - **Memory Issues**: Check if build requires more memory
 
 #### 2. Database Connection Issues
-- **URL Encoding**: Ensure special characters in passwords are properly encoded (see formatting guide above)
+- **Password Encoding**: Use raw passwords only - manual encoding causes double-encoding failures (see Password Encoding section)
 - **Network Access**: Verify database allows connections from Render IPs
-- **Credentials**: Double-check username, password, and database name
+- **Credentials**: Double-check username format (e.g., `postgres.pejuystijjkjxjctieyb` for Supabase)
 - **URL Format**: Ensure using correct format (see DATABASE_URL Formatting Guide above)
+- **Port Number**: Use 6543 for Supabase pooler or 5432 for direct connection
 
 #### 3. Email Service Issues
 - **API Key**: Verify Brevo API key is correct and active
