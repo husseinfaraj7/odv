@@ -343,6 +343,175 @@ Render automatically handles:
 - **Load Balancing**: Automatic distribution of requests
 - **Health Monitoring**: Automatic restart of unhealthy instances
 
+## Troubleshooting Render-Specific Environment Variable Issues
+
+### Verifying Environment Variables in Render Dashboard
+
+When diagnosing configuration issues, always start by verifying your environment variables are properly set:
+
+1. **Navigate to Environment Settings**:
+   - Log in to [Render Dashboard](https://dashboard.render.com)
+   - Select your web service
+   - Click the **Environment** tab in the left sidebar
+
+2. **Verify DATABASE_URL Configuration**:
+   - Locate `DATABASE_URL` in the environment variables list
+   - Click the eye icon (👁️) to reveal the value
+   - Confirm the URL format matches one of these patterns:
+     - `postgres://username:password@hostname:port/database`
+     - `postgresql://username:password@hostname:port/database`
+     - `jdbc:postgresql://hostname:port/database?user=username&password=password`
+   - Check for common issues:
+     - Special characters in password must be URL-encoded (e.g., `@` → `%40`)
+     - No extra spaces or line breaks
+     - Correct hostname and port (default PostgreSQL port is `5432`)
+     - Database name matches your actual database
+
+3. **Verify Other Required Variables**:
+   - Ensure all required variables are present (see "Configure Environment Variables" section)
+   - Check variable names for typos (case-sensitive!)
+   - Verify values are not empty or placeholder text
+
+### Locating EnvironmentPostProcessor Conversion Logs
+
+The application includes `DatabaseUrlEnvironmentPostProcessor` which converts standard PostgreSQL URLs to JDBC format. These logs help verify the conversion is working correctly:
+
+1. **Access Render Service Logs**:
+   - In your Render service dashboard, click the **Logs** tab
+   - Filter to "Deploy logs" or "Application logs" depending on when you want to check
+
+2. **Find Startup Logs**:
+   - Look for logs during application startup (immediately after "Starting BackendApplication")
+   - Search for lines containing `DatabaseUrlEnvironmentPostProcessor`
+
+3. **Interpret Conversion Logging**:
+
+   **✅ Successful Conversion Example:**
+   ```
+   INFO  - DatabaseUrlEnvironmentPostProcessor: Original DATABASE_URL: postgres://user:pass@host.com:5432/odvsicilia
+   INFO  - DatabaseUrlEnvironmentPostProcessor: Converted to JDBC URL: jdbc:postgresql://host.com:5432/odvsicilia?user=user&password=pass
+   INFO  - HikariPool-1 - Starting...
+   INFO  - HikariPool-1 - Start completed.
+   ```
+   This indicates the URL was detected, converted, and the connection succeeded.
+
+   **⚠️ No Conversion Log (Already JDBC Format):**
+   ```
+   INFO  - Starting BackendApplication using Java 17...
+   INFO  - HikariPool-1 - Starting...
+   ```
+   If you don't see `DatabaseUrlEnvironmentPostProcessor` logs, the URL is either:
+   - Already in JDBC format (no conversion needed)
+   - Not set in environment variables (using default configuration)
+
+   **❌ Connection Failure After Conversion:**
+   ```
+   INFO  - DatabaseUrlEnvironmentPostProcessor: Original DATABASE_URL: postgres://user:pass@host.com:5432/odvsicilia
+   INFO  - DatabaseUrlEnvironmentPostProcessor: Converted to JDBC URL: jdbc:postgresql://host.com:5432/odvsicilia?user=user&password=pass
+   ERROR - HikariPool-1 - Exception during pool initialization
+   ERROR - Failed to configure a DataSource: 'url' attribute is not specified
+   ```
+   This indicates conversion occurred but connection failed. Check:
+   - Database is accessible from Render's IPs
+   - Credentials are correct
+   - Database name exists
+   - Special characters are properly URL-encoded
+
+4. **Enable Detailed Logging (If Needed)**:
+   - Add these environment variables temporarily:
+     ```
+     LOGGING_LEVEL_IT_ODVSICILIA_BACKEND=DEBUG
+     LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_JDBC=DEBUG
+     LOGGING_LEVEL_COM_ZAXXER_HIKARI=DEBUG
+     ```
+   - Trigger a redeploy to see detailed connection logs
+
+### Common Render-Specific Mistakes
+
+Even experienced developers make these mistakes when deploying to Render:
+
+#### 1. **Forgetting to Save Environment Variable Changes**
+   - **Symptom**: Changes don't take effect, old values still in use
+   - **Cause**: After editing an environment variable in Render, the "Save Changes" button at the bottom must be clicked
+   - **Solution**: 
+     - Always scroll down and click **"Save Changes"** after editing variables
+     - Wait for the "Environment variables updated" confirmation message
+     - If unsure, refresh the page and verify your changes are visible
+
+#### 2. **Using Incorrect Variable Names**
+   - **Symptom**: Application uses default values or fails to start
+   - **Cause**: Variable names are case-sensitive and must match exactly
+   - **Common Mistakes**:
+     - `database_url` instead of `DATABASE_URL` ❌
+     - `DB_URL` instead of `DATABASE_URL` ❌
+     - `BREVO_KEY` instead of `BREVO_API_KEY` ❌
+     - `SUPABASE_KEY` instead of `SUPABASE_ANON_KEY` ❌
+   - **Solution**: 
+     - Copy variable names exactly from the "Configure Environment Variables" section above
+     - Use the exact naming convention: `DATABASE_URL`, `BREVO_API_KEY`, etc.
+     - Check for typos: extra spaces, underscores, or hyphens
+
+#### 3. **Failing to Trigger a Redeploy After Configuration Updates**
+   - **Symptom**: Changed environment variables don't take effect
+   - **Cause**: Render does **not** automatically restart services when environment variables change
+   - **Solution**: 
+     - After saving environment variable changes, you must manually trigger a redeploy:
+       1. Go to the **Manual Deploy** section in your service dashboard
+       2. Click **"Deploy latest commit"** button
+       3. Or, select "Settings" → "Deploy Hook" and trigger via webhook
+     - Alternatively, push a new commit to trigger automatic deployment
+     - Wait for deployment to complete and check logs to verify new values are used
+
+#### 4. **Copy-Pasting Values with Hidden Characters**
+   - **Symptom**: Authentication fails despite correct-looking credentials
+   - **Cause**: Invisible characters (spaces, newlines, tabs) copied from other sources
+   - **Solution**: 
+     - Manually type sensitive values when possible
+     - If copying, paste into a plain text editor first to check for hidden characters
+     - Trim leading/trailing spaces before pasting into Render
+
+#### 5. **Not URL-Encoding Special Characters in DATABASE_URL**
+   - **Symptom**: Database connection fails with authentication or parsing errors
+   - **Cause**: Special characters in password (like `@`, `#`, `$`, `%`) break URL parsing
+   - **Solution**: 
+     - See "Database URL Encoding" section above
+     - Use an online URL encoder or encode manually
+     - Test the encoded URL with `psql` before deploying
+
+#### 6. **Setting Variables in Wrong Environment**
+   - **Symptom**: Production works but preview/branch deploys fail (or vice versa)
+   - **Cause**: Render allows different environment variables for branch deploys
+   - **Solution**: 
+     - Check which environment you're configuring (main branch vs. pull request previews)
+     - In Environment tab, ensure variables are set for the correct environment
+     - For production: set variables in the main service
+     - For preview: check "Preview Environments" settings
+
+#### 7. **Deleting Instead of Updating Variables**
+   - **Symptom**: Service fails to start with missing configuration errors
+   - **Cause**: Accidentally deleting a variable instead of updating it
+   - **Solution**: 
+     - Always use the "Edit" button (pencil icon) to modify values
+     - Double-check before clicking delete (trash icon)
+     - Keep a backup of your environment variables in a secure location (password manager, not in code!)
+
+### Render-Specific Debugging Checklist
+
+When experiencing configuration issues on Render, work through this checklist:
+
+- [ ] Environment variables are saved (green confirmation message appeared)
+- [ ] Variable names match exactly (case-sensitive)
+- [ ] DATABASE_URL is in correct format and properly URL-encoded
+- [ ] Manual redeploy triggered after configuration changes
+- [ ] Deployment completed successfully (check deploy logs)
+- [ ] Application started (look for "Started BackendApplication" in logs)
+- [ ] `DatabaseUrlEnvironmentPostProcessor` conversion logs appear (if using postgres:// format)
+- [ ] HikariCP connection pool initialized successfully
+- [ ] Health endpoint returns 200 OK: `https://your-service.onrender.com/actuator/health`
+- [ ] No trailing spaces or hidden characters in environment variable values
+- [ ] All required environment variables are present (see "Required Variables" table)
+- [ ] Service logs don't show "null" or "undefined" for configuration values
+
 ## Support
 
 For deployment issues:
