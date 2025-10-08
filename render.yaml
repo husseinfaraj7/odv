@@ -119,20 +119,54 @@ services:
       # DATABASE_URL: Full PostgreSQL connection string using Supabase Connection Pooler
       # REQUIRED FORMAT: postgresql://postgres.[PROJECT_REF]:[YOUR-PASSWORD]@aws-1-[REGION].pooler.supabase.com:[PORT]/postgres
       # 
-      # IMPORTANT - PASSWORD HANDLING:
-      # Insert your actual password directly as-is in the [YOUR-PASSWORD] section.
-      # DO NOT manually URL-encode special characters in your password.
-      # The DatabaseUrlEnvironmentPostProcessor will automatically handle encoding of special characters
-      # (such as @, #, :, /, ?, &, =, +, $, !, *, (, )) for you.
+      # ============================================================================
+      # ⚠️ CRITICAL - PASSWORD ENCODING WARNING ⚠️
+      # ============================================================================
+      # 
+      # PROVIDE PASSWORDS IN RAW, UNENCODED FORM ONLY!
+      # 
+      # The DatabaseUrlEnvironmentPostProcessor automatically handles URL encoding
+      # of special characters in passwords. DO NOT manually URL-encode passwords
+      # as this will cause DOUBLE-ENCODING and result in authentication failures
+      # with the Supabase pooler connection.
       #
-      # Example with special characters in password:
-      #   Raw password: MyP@ss#123!
-      #   Insert as-is:  postgresql://postgres.YOUR_PROJECT_REF:MyP@ss#123!@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
-      #   The application will automatically convert it to the properly encoded format.
+      # ❌ WRONG - Manually encoded password:
+      #   Password: p@ssw0rd!
+      #   DON'T USE: postgresql://postgres.abc:p%40ssw0rd%21@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   This causes double-encoding: p%40ssw0rd%21 → p%2540ssw0rd%2521 (FAILS!)
+      #
+      # ✅ CORRECT - Raw password (automatic encoding):
+      #   Password: p@ssw0rd!
+      #   USE THIS: postgresql://postgres.abc:p@ssw0rd!@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   The app automatically converts to: p%40ssw0rd%21 (WORKS!)
+      #
+      # ============================================================================
+      # PASSWORD EXAMPLES:
+      # ============================================================================
+      #
+      # Example 1 - Password with special characters:
+      #   Raw password:     p@ssw0rd!
+      #   What you enter:   postgresql://postgres.myproject:p@ssw0rd!@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   Auto-encoded to:  postgresql://postgres.myproject:p%40ssw0rd%21@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #
+      # Example 2 - Password without special characters:
+      #   Raw password:     14863Faraj123
+      #   What you enter:   postgresql://postgres.myproject:14863Faraj123@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   Auto-encoded to:  postgresql://postgres.myproject:14863Faraj123@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   (No encoding needed, stays the same)
+      #
+      # Example 3 - Complex password:
+      #   Raw password:     MyP@ss#123!&=$
+      #   What you enter:   postgresql://postgres.myproject:MyP@ss#123!&=$@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   Auto-encoded to:  postgresql://postgres.myproject:MyP%40ss%23123%21%26%3D%24@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #
+      # ============================================================================
+      # URL COMPONENT BREAKDOWN:
+      # ============================================================================
       #
       # Where:
       #   - [PROJECT_REF]: Your 16-character Supabase project reference (from dashboard)
-      #   - [YOUR-PASSWORD]: Your actual password as-is (automatic encoding will be applied)
+      #   - [YOUR-PASSWORD]: Your actual password in RAW form (automatic encoding will be applied)
       #   - [REGION]: AWS region (e.g., eu-north-1, us-west-1, us-east-1, eu-central-1, ap-southeast-1)
       #   - [PORT]: 6543 for transaction mode (recommended) OR 5432 for session mode
       #
@@ -142,7 +176,7 @@ services:
       # - Transaction pooler handles connection pooling at the transaction level, ideal for web apps with many short-lived connections
       # - This pooler URL differs from direct database connections (db.YOUR_PROJECT_REF.supabase.co) and is specifically optimized for Render's stateless container architecture
       #
-      # TO USE: Replace [YOUR-PASSWORD] with your actual Supabase database password (keep all other parts of the URL intact)
+      # TO USE: Replace [YOUR-PASSWORD] with your actual Supabase database password IN RAW FORM (keep all other parts of the URL intact)
       - key: DATABASE_URL
         value: "postgresql://postgres.YOUR_PROJECT_REF:[YOUR-PASSWORD]@aws-1-eu-north-1.pooler.supabase.com:6543/postgres"
       
@@ -154,11 +188,19 @@ services:
       - key: DATABASE_USER
         value: "postgres.YOUR_PROJECT_REF"
       
-      # DATABASE_PASSWORD: PostgreSQL password (RAW, NOT URL-encoded)
+      # DATABASE_PASSWORD: PostgreSQL password (RAW, UNENCODED FORM ONLY)
+      # ⚠️ WARNING: Provide your password in its original, raw form.
+      # DO NOT manually URL-encode special characters.
+      # 
+      # Examples:
+      #   ✅ CORRECT:   p@ssw0rd!          (raw password)
+      #   ❌ WRONG:     p%40ssw0rd%21     (manually encoded - causes double-encoding!)
+      #   ✅ CORRECT:   14863Faraj123      (raw password)
+      #   ✅ CORRECT:   MyP@ss#123!&=$     (raw password with special chars)
+      #   ❌ WRONG:     MyP%40ss%23123%21%26%3D%24 (manually encoded - FAILS!)
+      #
       # This is your original password from Supabase project settings.
-      # Use raw password here: MyP@ssw0rd (NOT MyP%40ssw0rd)
-      # URL encoding is ONLY needed when embedding password in DATABASE_URL.
-      # Example: MyP@ss#123! (with special characters as-is)
+      # The DatabaseUrlEnvironmentPostProcessor handles encoding automatically.
       - key: DATABASE_PASSWORD
         value: "YOUR_DATABASE_PASSWORD"
       - key: DDL_AUTO
