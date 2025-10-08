@@ -131,15 +131,21 @@ services:
       # Session Mode Example (Port 5432):
       #   postgres://postgres.abcdefghijklmnop:MyP%40ssw0rd@aws-0-us-west-1.pooler.supabase.com:5432/postgres
       #
+      # CURRENT CONFIGURATION:
+      # - Using Supabase transaction pooler for eu-north-1 region (aws-1-eu-north-1.pooler.supabase.com)
+      # - Port 6543: Transaction mode pooling - optimized for serverless environments like Render
+      # - Transaction pooler handles connection pooling at the transaction level, ideal for web apps with many short-lived connections
+      # - This pooler URL differs from direct database connections (db.pejuystijjkjxjctieyb.supabase.co) and is specifically optimized for Render's stateless container architecture
       - key: DATABASE_URL
-        value: "postgres://postgres.YOUR_PROJECT_REF:YOUR_URL_ENCODED_PASSWORD@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+        value: "postgresql://postgres.pejuystijjkjxjctieyb:14863Faraj123@aws-1-eu-north-1.pooler.supabase.com:6543/postgres"
       
       # DATABASE_USER: PostgreSQL username for Supabase
       # REQUIRED FORMAT: postgres.[PROJECT_REF]
       # Example: postgres.abcdefghijklmnop
       # Note: Must match the username portion of your DATABASE_URL
+      # CURRENT: Using postgres.pejuystijjkjxjctieyb for eu-north-1 Supabase project
       - key: DATABASE_USER
-        value: "postgres.YOUR_PROJECT_REF"
+        value: "postgres.pejuystijjkjxjctieyb"
       
       # DATABASE_PASSWORD: PostgreSQL password (RAW, NOT URL-encoded)
       # This is your original password from Supabase project settings.
