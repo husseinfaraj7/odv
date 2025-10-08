@@ -117,27 +117,34 @@ services:
       # ============================================================================
       
       # DATABASE_URL: Full PostgreSQL connection string using Supabase Connection Pooler
-      # REQUIRED FORMAT: postgres://postgres.[PROJECT_REF]:[URL_ENCODED_PASSWORD]@aws-0-[REGION].pooler.supabase.com:[PORT]/postgres
+      # REQUIRED FORMAT: postgresql://postgres.[PROJECT_REF]:[YOUR-PASSWORD]@aws-1-[REGION].pooler.supabase.com:[PORT]/postgres
       # 
+      # IMPORTANT - PASSWORD HANDLING:
+      # Insert your actual password directly as-is in the [YOUR-PASSWORD] section.
+      # DO NOT manually URL-encode special characters in your password.
+      # The DatabaseUrlEnvironmentPostProcessor will automatically handle encoding of special characters
+      # (such as @, #, :, /, ?, &, =, +, $, !, *, (, )) for you.
+      #
+      # Example with special characters in password:
+      #   Raw password: MyP@ss#123!
+      #   Insert as-is:  postgresql://postgres.pejuystijjkjxjctieyb:MyP@ss#123!@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   The application will automatically convert it to the properly encoded format.
+      #
       # Where:
       #   - [PROJECT_REF]: Your 16-character Supabase project reference (from dashboard)
-      #   - [URL_ENCODED_PASSWORD]: Your password with special characters URL-encoded
-      #   - [REGION]: AWS region (e.g., us-west-1, us-east-1, eu-central-1, ap-southeast-1)
+      #   - [YOUR-PASSWORD]: Your actual password as-is (automatic encoding will be applied)
+      #   - [REGION]: AWS region (e.g., eu-north-1, us-west-1, us-east-1, eu-central-1, ap-southeast-1)
       #   - [PORT]: 6543 for transaction mode (recommended) OR 5432 for session mode
-      #
-      # Transaction Mode Example (Port 6543):
-      #   postgres://postgres.abcdefghijklmnop:MyP%40ssw0rd@aws-0-us-west-1.pooler.supabase.com:6543/postgres
-      #
-      # Session Mode Example (Port 5432):
-      #   postgres://postgres.abcdefghijklmnop:MyP%40ssw0rd@aws-0-us-west-1.pooler.supabase.com:5432/postgres
       #
       # CURRENT CONFIGURATION:
       # - Using Supabase transaction pooler for eu-north-1 region (aws-1-eu-north-1.pooler.supabase.com)
       # - Port 6543: Transaction mode pooling - optimized for serverless environments like Render
       # - Transaction pooler handles connection pooling at the transaction level, ideal for web apps with many short-lived connections
       # - This pooler URL differs from direct database connections (db.pejuystijjkjxjctieyb.supabase.co) and is specifically optimized for Render's stateless container architecture
+      #
+      # TO USE: Replace [YOUR-PASSWORD] with your actual Supabase database password (keep all other parts of the URL intact)
       - key: DATABASE_URL
-        value: "postgresql://postgres.pejuystijjkjxjctieyb:14863Faraj123@aws-1-eu-north-1.pooler.supabase.com:6543/postgres"
+        value: "postgresql://postgres.pejuystijjkjxjctieyb:[YOUR-PASSWORD]@aws-1-eu-north-1.pooler.supabase.com:6543/postgres"
       
       # DATABASE_USER: PostgreSQL username for Supabase
       # REQUIRED FORMAT: postgres.[PROJECT_REF]
