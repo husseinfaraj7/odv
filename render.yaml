@@ -20,45 +20,132 @@ services:
       - key: PORT
         value: "8080"
       
-      # Database Configuration - Simplified naming convention
-      # For Supabase connections, you can use either format:
-      # 1. Standard PostgreSQL format: postgres://user:pass@host:port/dbname
-      #    Example: postgres://postgres.pejuystijjkjxjctieyb:MyP@ss#123@aws-0-us-west-1.pooler.supabase.com:6543/postgres
-      # 2. JDBC format: jdbc:postgresql://host:port/dbname?user=x&password=y
-      #    Example: jdbc:postgresql://aws-0-us-west-1.pooler.supabase.com:6543/postgres?user=postgres.pejuystijjkjxjctieyb&password=MyP%40ss%23123
-      # Note: The application automatically converts the standard format to JDBC format during startup.
+      # ============================================================================
+      # DATABASE CONFIGURATION - SUPABASE CONNECTION POOLER
+      # ============================================================================
+      # 
+      # IMPORTANT: Always use Supabase Connection Pooler URLs (aws-0-[region].pooler.supabase.com)
+      # NOT direct database URLs (db.[project-ref].supabase.co) for production deployments.
       #
-      # IMPORTANT: URL Encoding for Special Characters
-      # If your password contains special characters like @, :, /, ?, #, or &, you MUST URL-encode them:
-      #   @ becomes %40
-      #   # becomes %23
-      #   : becomes %3A
-      #   / becomes %2F
-      #   ? becomes %3F
-      #   & becomes %26
+      # Connection Pooler Modes:
+      # 
+      # 1. TRANSACTION MODE (Port 6543) - RECOMMENDED for most applications
+      #    - Uses connection pooling at transaction level
+      #    - Best for web applications with many short-lived connections
+      #    - Format: postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
+      #    - Example: postgres://postgres.abcdefghijklmnop:MyP%40ssw0rd@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+      #
+      # 2. SESSION MODE (Port 5432) - Use for long-running connections or specific features
+      #    - Uses connection pooling at session level
+      #    - Required for certain PostgreSQL features (prepared statements, LISTEN/NOTIFY)
+      #    - Format: postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
+      #    - Example: postgres://postgres.abcdefghijklmnop:MyP%40ssw0rd@aws-0-us-west-1.pooler.supabase.com:5432/postgres
+      #
+      # URL ENCODING for Special Characters (CRITICAL):
+      # When embedding passwords in the connection URL, you MUST URL-encode special characters:
+      #   @ → %40    # → %23    : → %3A    / → %2F    ? → %3F    & → %26
+      #   = → %3D    + → %2B    $ → %24    ! → %21    * → %2A    ( → %28    ) → %29
+      #
       # Example with special characters:
-      #   Original password: MyP@ss#123
-      #   URL-encoded password: MyP%40ss%23123
-      #   Full URL: postgres://postgres.pejuystijjkjxjctieyb:MyP%40ss%23123@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+      #   Raw password: MyP@ss#123!
+      #   URL-encoded:  MyP%40ss%23123%21
+      #   Full URL:     postgres://postgres.abc123:MyP%40ss%23123%21@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+      #
+      # ============================================================================
+      # COMMON MISTAKES TO AVOID:
+      # ============================================================================
+      # ❌ Using direct database URL: db.pejuystijjkjxjctieyb.supabase.co
+      #    ✅ Use pooler URL instead: aws-0-us-west-1.pooler.supabase.com
+      #
+      # ❌ Wrong port for transaction mode: 5432 when you need 6543
+      #    ✅ Use 6543 for transaction pooling (recommended for web apps)
+      #
+      # ❌ Forgetting URL encoding: MyP@ss#123 in connection URL
+      #    ✅ URL-encode the password: MyP%40ss%23123
+      #
+      # ❌ Using JDBC prefix: jdbc:postgresql://aws-0-us-west-1.pooler.supabase.com
+      #    ✅ Use postgres:// prefix (app converts to JDBC automatically)
+      #
+      # ❌ Connection pooling not enabled in Supabase settings
+      #    ✅ Go to Supabase Dashboard → Project Settings → Database → Enable Pooler
+      #
+      # ❌ Using database name other than "postgres": /my_database
+      #    ✅ Use /postgres (default Supabase database name)
+      #
+      # ❌ Inconsistent username format: postgres_user
+      #    ✅ Use format: postgres.[PROJECT_REF] (e.g., postgres.abcdefghijklmnop)
+      #
+      # ============================================================================
+      # VALIDATION EXAMPLES:
+      # ============================================================================
+      # 
+      # To verify your DATABASE_URL is correctly formatted, run these checks:
+      #
+      # 1. Test connection locally (PowerShell):
+      #    $env:DATABASE_URL="postgres://postgres.abc123:pass@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+      #    .\mvn.ps1 spring-boot:run
+      #    # Look for: "HikariPool-1 - Start completed"
+      #
+      # 2. Verify URL format with regex (PowerShell):
+      #    $url = "postgres://postgres.abc123:pass@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+      #    if ($url -match '^postgres://postgres\.[a-z0-9]+:.+@aws-0-[a-z0-9-]+\.pooler\.supabase\.com:(6543|5432)/postgres$') {
+      #        Write-Host "✅ URL format is correct"
+      #    } else {
+      #        Write-Host "❌ URL format is incorrect"
+      #    }
+      #
+      # 3. Test with psql (if PostgreSQL client installed):
+      #    psql "postgres://postgres.abc123:pass@aws-0-us-west-1.pooler.supabase.com:6543/postgres" -c "SELECT version();"
+      #    # Should return PostgreSQL version info
+      #
+      # 4. Check URL encoding (PowerShell):
+      #    # Correct: No raw special characters in password section
+      #    if ($url -match '@[^@]*@') {
+      #        Write-Host "❌ Password contains unencoded @ character"
+      #    }
+      #
+      # 5. Verify in Render logs after deployment:
+      #    # Success indicators:
+      #    #   - "HikariPool-1 - Starting..."
+      #    #   - "HikariPool-1 - Start completed"
+      #    #   - "Started BackendApplication in X.XXX seconds"
+      #    # Failure indicators:
+      #    #   - "Connection to localhost:5432 refused" → DATABASE_URL not set
+      #    #   - "password authentication failed" → Wrong password or encoding
+      #    #   - "Connection timeout" → Wrong host/port or pooler not enabled
+      #
+      # ============================================================================
       
-      # DATABASE_URL: Full PostgreSQL connection string
-      # Supabase format: postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
-      # Example: postgres://postgres.abcdefghijklmnop:MyP%40ssw0rd@aws-0-us-west-1.pooler.supabase.com:6543/postgres
-      # Note: Use Transaction Mode (port 6543) for connection pooling, or Session Mode (port 5432) for direct connections
-      # Remember to URL-encode special characters in the password portion of the URL
+      # DATABASE_URL: Full PostgreSQL connection string using Supabase Connection Pooler
+      # REQUIRED FORMAT: postgres://postgres.[PROJECT_REF]:[URL_ENCODED_PASSWORD]@aws-0-[REGION].pooler.supabase.com:[PORT]/postgres
+      # 
+      # Where:
+      #   - [PROJECT_REF]: Your 16-character Supabase project reference (from dashboard)
+      #   - [URL_ENCODED_PASSWORD]: Your password with special characters URL-encoded
+      #   - [REGION]: AWS region (e.g., us-west-1, us-east-1, eu-central-1, ap-southeast-1)
+      #   - [PORT]: 6543 for transaction mode (recommended) OR 5432 for session mode
+      #
+      # Transaction Mode Example (Port 6543):
+      #   postgres://postgres.abcdefghijklmnop:MyP%40ssw0rd@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+      #
+      # Session Mode Example (Port 5432):
+      #   postgres://postgres.abcdefghijklmnop:MyP%40ssw0rd@aws-0-us-west-1.pooler.supabase.com:5432/postgres
+      #
       - key: DATABASE_URL
         value: "postgres://postgres.YOUR_PROJECT_REF:YOUR_URL_ENCODED_PASSWORD@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
       
-      # DATABASE_USER: PostgreSQL username
-      # Supabase format: postgres.[PROJECT_REF]
+      # DATABASE_USER: PostgreSQL username for Supabase
+      # REQUIRED FORMAT: postgres.[PROJECT_REF]
       # Example: postgres.abcdefghijklmnop
+      # Note: Must match the username portion of your DATABASE_URL
       - key: DATABASE_USER
         value: "postgres.YOUR_PROJECT_REF"
       
-      # DATABASE_PASSWORD: PostgreSQL password (use raw password, NOT URL-encoded)
-      # This should be the original password from your Supabase project settings
-      # Example: MyP@ssw0rd (NOT MyP%40ssw0rd)
-      # Note: When used separately (not in DATABASE_URL), do NOT URL-encode
+      # DATABASE_PASSWORD: PostgreSQL password (RAW, NOT URL-encoded)
+      # This is your original password from Supabase project settings.
+      # Use raw password here: MyP@ssw0rd (NOT MyP%40ssw0rd)
+      # URL encoding is ONLY needed when embedding password in DATABASE_URL.
+      # Example: MyP@ss#123! (with special characters as-is)
       - key: DATABASE_PASSWORD
         value: "YOUR_DATABASE_PASSWORD"
       - key: DDL_AUTO
