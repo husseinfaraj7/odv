@@ -16,10 +16,17 @@ import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProcessor {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseUrlEnvironmentPostProcessor.class);
+    private static final int POOLER_PORT = 6543;
+    private static final int DIRECT_PORT = 5432;
+    private static final int CONNECTION_TIMEOUT_MS = 5000;
+    private static final Pattern SUPABASE_POOLER_PATTERN = Pattern.compile("^(.*\\.)?([a-zA-Z0-9-]+)\\.pooler\\.supabase\\.com");
+    private static final Pattern SUPABASE_DIRECT_PATTERN = Pattern.compile("^db\\.([a-zA-Z0-9-]+)\\.supabase\\.co");
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -53,9 +60,11 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
 
         if (databaseUrl.startsWith("postgres://") || databaseUrl.startsWith("postgresql://")) {
             try {
-                String jdbcUrl = convertToJdbcUrl(databaseUrl);
+                String connectionMode = environment.getProperty("SUPABASE_CONNECTION_MODE", "auto").toLowerCase();
+                String finalDatabaseUrl = selectConnectionUrl(databaseUrl, connectionMode);
+                String jdbcUrl = convertToJdbcUrl(finalDatabaseUrl);
                 
-                performNetworkDiagnostics(databaseUrl);
+                performNetworkDiagnostics(finalDatabaseUrl);
                 
                 Map<String, Object> props = new HashMap<>();
                 props.put("spring.datasource.url", jdbcUrl);
@@ -82,6 +91,104 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
                        "Value starts with: {}. Application may fail to connect to database.",
                        databaseUrl.substring(0, Math.min(20, databaseUrl.length())));
             logger.debug("Final configuration state: DATABASE_URL format unrecognized, no URL conversion performed");
+        }
+    }
+
+    private String selectConnectionUrl(String databaseUrl, String connectionMode) {
+        switch (connectionMode) {
+            case "direct":
+                String directUrl = convertToDirectConnection(databaseUrl);
+                logger.info("Connection mode 'direct' selected: using direct database connection");
+                return directUrl;
+            
+            case "pooler":
+                logger.info("Connection mode 'pooler' selected: using pooler connection");
+                return databaseUrl;
+            
+            case "auto":
+                return autoSelectConnection(databaseUrl);
+            
+            default:
+                logger.warn("Invalid SUPABASE_CONNECTION_MODE value '{}'. Valid values are 'pooler', 'direct', or 'auto'. Defaulting to 'auto'", connectionMode);
+                return autoSelectConnection(databaseUrl);
+        }
+    }
+
+    private String autoSelectConnection(String databaseUrl) {
+        try {
+            String[] hostPort = extractHostAndPort(databaseUrl);
+            String hostname = hostPort[0];
+            int port = Integer.parseInt(hostPort[1]);
+            
+            if (port == POOLER_PORT && testTcpConnectivity(hostname, POOLER_PORT)) {
+                logger.info("Connection mode 'auto' selected: pooler connectivity test successful, using pooler connection");
+                return databaseUrl;
+            } else {
+                logger.warn("Connection mode 'auto' selected: pooler connectivity test failed or not using pooler port, falling back to direct database connection");
+                return convertToDirectConnection(databaseUrl);
+            }
+        } catch (Exception e) {
+            logger.warn("Connection mode 'auto' selected: failed to test pooler connectivity ({}), falling back to direct database connection", e.getMessage());
+            return convertToDirectConnection(databaseUrl);
+        }
+    }
+
+    private String convertToDirectConnection(String databaseUrl) {
+        try {
+            String[] hostPort = extractHostAndPort(databaseUrl);
+            String hostname = hostPort[0];
+            
+            String projectRef = extractProjectReference(hostname);
+            if (projectRef == null) {
+                logger.warn("Could not extract Supabase project reference from hostname '{}', returning original URL", hostname);
+                return databaseUrl;
+            }
+            
+            String directHostname = "db." + projectRef + ".supabase.co";
+            
+            String newUrl = databaseUrl.replace(hostname, directHostname);
+            
+            if (newUrl.contains(":" + POOLER_PORT)) {
+                newUrl = newUrl.replace(":" + POOLER_PORT, ":" + DIRECT_PORT);
+            } else {
+                int slashAfterHost = newUrl.indexOf('/', newUrl.indexOf("://") + 3);
+                int atIndex = newUrl.lastIndexOf('@', slashAfterHost);
+                if (atIndex != -1) {
+                    String beforeSlash = newUrl.substring(0, slashAfterHost);
+                    String afterSlash = newUrl.substring(slashAfterHost);
+                    if (!beforeSlash.matches(".*:\\d+$")) {
+                        newUrl = beforeSlash + ":" + DIRECT_PORT + afterSlash;
+                    }
+                }
+            }
+            
+            return newUrl;
+        } catch (Exception e) {
+            logger.error("Failed to convert to direct connection: {}", e.getMessage());
+            return databaseUrl;
+        }
+    }
+
+    private String extractProjectReference(String hostname) {
+        Matcher poolerMatcher = SUPABASE_POOLER_PATTERN.matcher(hostname);
+        if (poolerMatcher.matches()) {
+            return poolerMatcher.group(2);
+        }
+        
+        Matcher directMatcher = SUPABASE_DIRECT_PATTERN.matcher(hostname);
+        if (directMatcher.matches()) {
+            return directMatcher.group(1);
+        }
+        
+        return null;
+    }
+
+    private boolean testTcpConnectivity(String hostname, int port) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new java.net.InetSocketAddress(hostname, port), CONNECTION_TIMEOUT_MS);
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 
