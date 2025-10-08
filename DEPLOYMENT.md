@@ -313,6 +313,309 @@ postgres://user:password@hostname:5432/database?sslmode=require
 4. **Check Application Logs**: Look for runtime errors or configuration issues
 5. **Validate Health Endpoint**: Test `/actuator/health` endpoint
 
+## Network Connectivity Troubleshooting
+
+This section provides diagnostic steps for troubleshooting network connectivity issues between Render and Supabase, particularly when encountering "network unreachable" errors or connection timeouts referenced in earlier PostgreSQL connection issues.
+
+### Understanding Supabase Connection Modes
+
+Supabase provides two types of database connections:
+
+#### 1. Direct Connection (Port 5432)
+- **Format**: `postgres://postgres.PROJECT_REF:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres`
+- **Use Case**: Direct database access, long-running queries, administrative tasks
+- **Pros**: Full PostgreSQL feature support, dedicated connection
+- **Cons**: Limited connection pool (based on your plan), may exhaust connections under load
+- **Connection Limit**: Typically 60-500 connections depending on plan
+
+#### 2. Connection Pooler (Port 6543)
+- **Format**: `postgres://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres`
+- **Use Case**: Production applications, high concurrency, serverless deployments
+- **Pros**: Scalable connection pooling, handles thousands of connections
+- **Cons**: Transaction mode only (some PostgreSQL features unavailable)
+- **Connection Limit**: Virtually unlimited through pooling
+
+**Recommendation**: For Render deployments, use the **Connection Pooler (port 6543)** for better scalability and reliability.
+
+### Verifying Supabase Network Configuration
+
+#### Step 1: Check Connection Pooling Settings
+
+1. Log in to [Supabase Dashboard](https://app.supabase.com)
+2. Navigate to **Project Settings** → **Database**
+3. Scroll to **Connection Pooling** section
+4. Verify settings:
+   - ✅ **Connection pooling enabled**: Should be ON
+   - ✅ **Pool Mode**: Should be set to "Transaction"
+   - ✅ **Connection string**: Copy the pooler URL (port 6543)
+
+#### Step 2: Verify External Connection Settings
+
+Supabase allows external connections by default, but verify:
+
+1. In Supabase Dashboard: **Project Settings** → **Database**
+2. Under **Connection Info**, check:
+   - ✅ **Host**: Should be `aws-0-REGION.pooler.supabase.com` (pooler) or `db.PROJECT_REF.supabase.co` (direct)
+   - ✅ **Port**: `6543` (pooler) or `5432` (direct)
+   - ✅ **SSL Mode**: Should be enabled/required
+
+3. Check for any network restrictions:
+   - Navigate to **Settings** → **Network Restrictions** (if available)
+   - Verify no IP allowlist is configured, OR
+   - Add Render's outbound IP ranges to allowlist (see below)
+
+#### Step 3: Configure IP Allowlisting (If Required)
+
+Some Supabase plans support IP allowlisting. If enabled, you must whitelist Render's IPs:
+
+**To find Render's Outbound IPs:**
+```bash
+# From Render shell (after deploying):
+curl -s https://api.ipify.org && echo
+# Or check Render documentation for static IP ranges
+```
+
+**Note**: Render does not provide static IP addresses on free/starter plans. If Supabase requires IP allowlisting, consider:
+- Upgrading to Render plans with static IPs
+- Disabling IP allowlisting in Supabase (if supported by your plan)
+- Using Supabase with open external access (recommended for most use cases)
+
+### Testing Network Connectivity from Render
+
+Once your service is deployed to Render, you can test network connectivity directly from the Render shell.
+
+#### Step 1: Access Render Shell
+
+1. Go to Render Dashboard → Your Service
+2. Click **Shell** tab in the left sidebar
+3. Wait for shell session to initialize
+
+#### Step 2: Test DNS Resolution
+
+Verify that Supabase hostnames resolve correctly:
+
+```bash
+# Test pooler hostname resolution
+nslookup aws-0-us-west-1.pooler.supabase.com
+
+# Test direct connection hostname resolution
+nslookup db.pejuystijjkjxjctieyb.supabase.co
+
+# Alternative DNS test
+host aws-0-us-west-1.pooler.supabase.com
+```
+
+**Expected Output**:
+```
+Server:  10.0.0.2
+Address: 10.0.0.2#53
+
+Non-authoritative answer:
+Name:    aws-0-us-west-1.pooler.supabase.com
+Address: 54.183.XXX.XXX
+```
+
+**Troubleshooting DNS Issues**:
+- ❌ **"can't find ... NXDOMAIN"**: Hostname doesn't exist, check for typos in DATABASE_URL
+- ❌ **Timeout**: DNS server unreachable, contact Render support
+- ✅ **Returns IP address**: DNS resolution working correctly
+
+#### Step 3: Test TCP Connectivity to Database Port
+
+Test if you can reach the Supabase database port from Render:
+
+**Using telnet (Port 6543 - Pooler)**:
+```bash
+# Test connection pooler endpoint
+telnet aws-0-us-west-1.pooler.supabase.com 6543
+
+# Alternative example with different region
+telnet aws-0-eu-west-1.pooler.supabase.com 6543
+```
+
+**Using nc/netcat (Port 6543 - Pooler)**:
+```bash
+# Test connection pooler with timeout
+nc -zv -w5 aws-0-us-west-1.pooler.supabase.com 6543
+
+# Test with explicit timeout and verbose output
+timeout 5 nc -vz aws-0-us-west-1.pooler.supabase.com 6543
+```
+
+**Using telnet (Port 5432 - Direct Connection)**:
+```bash
+# Test direct database connection
+telnet db.pejuystijjkjxjctieyb.supabase.co 5432
+
+# Another example with different project
+telnet db.abcdefghijklmnop.supabase.co 5432
+```
+
+**Using nc/netcat (Port 5432 - Direct Connection)**:
+```bash
+# Test direct connection
+nc -zv -w5 db.pejuystijjkjxjctieyb.supabase.co 5432
+```
+
+**Expected Output (Success)**:
+```
+# telnet success:
+Connected to aws-0-us-west-1.pooler.supabase.com.
+Escape character is '^]'.
+
+# nc success:
+Connection to aws-0-us-west-1.pooler.supabase.com 6543 port [tcp/*] succeeded!
+```
+
+**Troubleshooting Connectivity Issues**:
+
+| Error Message | Meaning | Solution |
+|---------------|---------|----------|
+| `Connection refused` | Port is closed or service not running | Verify port number (6543 vs 5432), check Supabase status page |
+| `Connection timed out` / `Network is unreachable` | Firewall blocking or network issue | Check Supabase IP allowlist, verify pooler is enabled |
+| `No route to host` | DNS resolved but routing failed | Contact Render support, check Supabase status |
+| `Name or service not known` | DNS resolution failed | Check hostname for typos, verify it matches Supabase dashboard |
+
+#### Step 4: Test Full PostgreSQL Connection
+
+If TCP connectivity works, test the actual PostgreSQL connection:
+
+```bash
+# Install PostgreSQL client (if not available)
+apt-get update && apt-get install -y postgresql-client
+
+# Test connection with psql (pooler)
+psql "postgres://postgres.pejuystijjkjxjctieyb:YOUR_PASSWORD@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+
+# Test connection with psql (direct)
+psql "postgres://postgres.pejuystijjkjxjctieyb:YOUR_PASSWORD@db.pejuystijjkjxjctieyb.supabase.co:5432/postgres"
+
+# Test with explicit SSL mode
+psql "postgres://postgres.pejuystijjkjxjctieyb:YOUR_PASSWORD@aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require"
+```
+
+**Expected Output (Success)**:
+```
+psql (14.x, server 15.x)
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, bits: 256)
+Type "help" for help.
+
+postgres=>
+```
+
+**Troubleshooting psql Errors**:
+- `password authentication failed`: Wrong password or username format
+- `database "postgres" does not exist`: Incorrect database name in URL
+- `could not connect to server`: Network/firewall issue (revisit TCP connectivity tests)
+- `SSL error`: Add `?sslmode=require` or `?sslmode=disable` to connection string
+
+### Diagnostic Workflow for "Network Unreachable" Errors
+
+When encountering persistent network errors, follow this step-by-step diagnostic workflow:
+
+#### Phase 1: Verify Configuration
+1. ✅ Check DATABASE_URL format in Render environment variables
+2. ✅ Verify special characters are URL-encoded (see DATABASE_URL Formatting Guide)
+3. ✅ Confirm you're using the correct hostname from Supabase dashboard
+4. ✅ Verify port number: 6543 (pooler) or 5432 (direct)
+5. ✅ Ensure environment variables are saved and service redeployed
+
+#### Phase 2: Test from Render Shell
+1. ✅ Access Render shell and test DNS resolution (Step 2 above)
+2. ✅ Test TCP connectivity with `telnet` or `nc` (Step 3 above)
+3. ✅ If available, test with `psql` client (Step 4 above)
+
+#### Phase 3: Verify Supabase Settings
+1. ✅ Check connection pooling is enabled (Supabase Dashboard)
+2. ✅ Verify no IP restrictions are blocking Render's IPs
+3. ✅ Check Supabase status page for outages: https://status.supabase.com
+4. ✅ Try both pooler (6543) and direct (5432) connection modes
+
+#### Phase 4: Check Application Logs
+1. ✅ Review Render logs for `DatabaseUrlEnvironmentPostProcessor` conversion
+2. ✅ Look for HikariCP connection pool errors
+3. ✅ Check for timeout vs. authentication vs. DNS errors
+4. ✅ Enable debug logging if needed:
+   ```
+   LOGGING_LEVEL_COM_ZAXXER_HIKARI=DEBUG
+   LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_JDBC=DEBUG
+   ```
+
+#### Phase 5: Escalation
+If all steps above pass but connection still fails:
+1. Contact Render support with connectivity test results
+2. Contact Supabase support with connection details
+3. Check for regional issues or outages
+4. Consider trying a different Supabase region
+
+### Example Troubleshooting Session
+
+Here's a complete example of troubleshooting a connection issue:
+
+```bash
+# 1. Verify DNS resolution
+$ nslookup aws-0-us-west-1.pooler.supabase.com
+Server:  10.0.0.2
+Address: 10.0.0.2#53
+
+Non-authoritative answer:
+Name:    aws-0-us-west-1.pooler.supabase.com
+Address: 54.183.XXX.XXX
+# ✅ DNS works
+
+# 2. Test TCP connectivity to pooler port
+$ nc -zv -w5 aws-0-us-west-1.pooler.supabase.com 6543
+Connection to aws-0-us-west-1.pooler.supabase.com 6543 port [tcp/*] succeeded!
+# ✅ Network connectivity works
+
+# 3. Test PostgreSQL connection
+$ psql "postgres://postgres.myproject:MyPassword123@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+psql (14.10, server 15.1)
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384)
+Type "help" for help.
+
+postgres=> SELECT version();
+                                                version
+-------------------------------------------------------------------------------------------------------
+ PostgreSQL 15.1 on x86_64-pc-linux-gnu, compiled by gcc, 64-bit
+(1 row)
+
+postgres=> \q
+# ✅ Database connection works
+
+# Conclusion: Network connectivity is healthy
+# If application still fails, check:
+# - Environment variable format in Render
+# - Password URL encoding in DATABASE_URL
+# - Application logs for specific error messages
+```
+
+### Quick Reference: Common Connection String Formats
+
+```bash
+# Connection Pooler (Recommended for Production)
+postgres://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres
+
+# Direct Connection (For Admin/Long Queries)
+postgres://postgres.PROJECT_REF:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres
+
+# With URL-Encoded Password (Special Characters)
+postgres://postgres.myproject:MyP%40ss%23word@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+
+# With Explicit SSL Mode
+postgres://postgres.myproject:MyPassword@aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require
+
+# JDBC Format (Auto-Converted by Application)
+jdbc:postgresql://aws-0-us-west-1.pooler.supabase.com:6543/postgres?user=postgres.myproject&password=MyPassword
+```
+
+### Additional Resources
+
+- **Supabase Network Documentation**: https://supabase.com/docs/guides/platform/network-restrictions
+- **Supabase Connection Pooling**: https://supabase.com/docs/guides/database/connecting-to-postgres#connection-pooler
+- **Render Network Information**: https://render.com/docs/networking
+- **PostgreSQL Connection Strings**: https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+
 ## Performance Optimization
 
 ### Database Connection Pool
