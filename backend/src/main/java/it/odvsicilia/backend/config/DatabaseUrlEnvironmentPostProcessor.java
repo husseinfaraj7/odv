@@ -154,7 +154,7 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         String afterScheme = databaseUrl.substring(schemeEnd + 3);
         
         String hostAndRest;
-        int atIndex = afterScheme.indexOf('@');
+        int atIndex = afterScheme.lastIndexOf('@');
         if (atIndex != -1) {
             hostAndRest = afterScheme.substring(atIndex + 1);
         } else {
@@ -208,7 +208,7 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         String password = "";
         String hostAndRest;
         
-        int atIndex = afterScheme.indexOf('@');
+        int atIndex = afterScheme.lastIndexOf('@');
         if (atIndex != -1) {
             userInfo = afterScheme.substring(0, atIndex);
             hostAndRest = afterScheme.substring(atIndex + 1);

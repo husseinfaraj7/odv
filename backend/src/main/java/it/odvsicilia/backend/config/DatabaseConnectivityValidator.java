@@ -17,7 +17,7 @@ public class DatabaseConnectivityValidator {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseConnectivityValidator.class);
     private static final int DEFAULT_TIMEOUT_MS = 5000;
     private static final Pattern JDBC_URL_PATTERN = Pattern.compile("jdbc:postgresql://([^:/]+):(\\d+)/");
-    private static final Pattern POSTGRES_URL_PATTERN = Pattern.compile("postgres(?:ql)?://(?:[^@]+@)?([^:/]+):(\\d+)");
+    private static final Pattern POSTGRES_URL_PATTERN = Pattern.compile("postgres(?:ql)?://(?:.*@)?([^:/]+):(\\d+)");
 
     public static class ValidationResult {
         private final boolean success;

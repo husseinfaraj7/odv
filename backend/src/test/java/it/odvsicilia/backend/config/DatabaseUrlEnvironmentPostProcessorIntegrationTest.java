@@ -475,6 +475,63 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         assertNull(resultUrl, "JDBC URL should not be modified");
     }
 
+    @Test
+    @DisplayName("Should convert Supabase pooler URL with URL-encoded password preserving encoding")
+    void testSupabasePoolerUrlWithPreEncodedPassword() {
+        ConfigurableEnvironment environment = new MockEnvironment();
+        
+        Map<String, Object> props = new HashMap<>();
+        props.put("DATABASE_URL", "postgresql://postgres.pejuystijjkjxjctieyb:p%40ss%23word@aws-1-eu-north-1.pooler.supabase.com:6543/postgres");
+        environment.getPropertySources().addFirst(new MapPropertySource("test", props));
+
+        DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
+        processor.postProcessEnvironment(environment, new SpringApplication());
+
+        String jdbcUrl = environment.getProperty("spring.datasource.url");
+        assertNotNull(jdbcUrl);
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres"));
+        assertTrue(jdbcUrl.contains("user=postgres.pejuystijjkjxjctieyb"));
+        assertTrue(jdbcUrl.contains("password=p%2540ss%2523word"));
+    }
+
+    @Test
+    @DisplayName("Should convert Supabase pooler URL with raw special character password and encode properly")
+    void testSupabasePoolerUrlWithRawSpecialCharacterPassword() {
+        ConfigurableEnvironment environment = new MockEnvironment();
+        
+        Map<String, Object> props = new HashMap<>();
+        props.put("DATABASE_URL", "postgresql://postgres.pejuystijjkjxjctieyb:p@ss#w0rd%special@aws-1-eu-north-1.pooler.supabase.com:6543/postgres");
+        environment.getPropertySources().addFirst(new MapPropertySource("test", props));
+
+        DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
+        processor.postProcessEnvironment(environment, new SpringApplication());
+
+        String jdbcUrl = environment.getProperty("spring.datasource.url");
+        assertNotNull(jdbcUrl);
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres"));
+        assertTrue(jdbcUrl.contains("user=postgres.pejuystijjkjxjctieyb"));
+        assertTrue(jdbcUrl.contains("password=p%40ss%23w0rd%25special"));
+    }
+
+    @Test
+    @DisplayName("Should convert Supabase pooler URL with alphanumeric password")
+    void testSupabasePoolerUrlWithAlphanumericPassword() {
+        ConfigurableEnvironment environment = new MockEnvironment();
+        
+        Map<String, Object> props = new HashMap<>();
+        props.put("DATABASE_URL", "postgresql://postgres.pejuystijjkjxjctieyb:SecurePass123@aws-1-eu-north-1.pooler.supabase.com:6543/postgres");
+        environment.getPropertySources().addFirst(new MapPropertySource("test", props));
+
+        DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
+        processor.postProcessEnvironment(environment, new SpringApplication());
+
+        String jdbcUrl = environment.getProperty("spring.datasource.url");
+        assertNotNull(jdbcUrl);
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres"));
+        assertTrue(jdbcUrl.contains("user=postgres.pejuystijjkjxjctieyb"));
+        assertTrue(jdbcUrl.contains("password=SecurePass123"));
+    }
+
     @SpringBootApplication
     static class TestConfiguration {
     }
