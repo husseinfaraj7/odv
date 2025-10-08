@@ -40,12 +40,27 @@ services:
       #   Original password: MyP@ss#123
       #   URL-encoded password: MyP%40ss%23123
       #   Full URL: postgres://postgres.pejuystijjkjxjctieyb:MyP%40ss%23123@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+      
+      # DATABASE_URL: Full PostgreSQL connection string
+      # Supabase format: postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
+      # Example: postgres://postgres.abcdefghijklmnop:MyP%40ssw0rd@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+      # Note: Use Transaction Mode (port 6543) for connection pooling, or Session Mode (port 5432) for direct connections
+      # Remember to URL-encode special characters in the password portion of the URL
       - key: DATABASE_URL
-        sync: true
+        value: "postgres://postgres.YOUR_PROJECT_REF:YOUR_URL_ENCODED_PASSWORD@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+      
+      # DATABASE_USER: PostgreSQL username
+      # Supabase format: postgres.[PROJECT_REF]
+      # Example: postgres.abcdefghijklmnop
       - key: DATABASE_USER
-        sync: true
+        value: "postgres.YOUR_PROJECT_REF"
+      
+      # DATABASE_PASSWORD: PostgreSQL password (use raw password, NOT URL-encoded)
+      # This should be the original password from your Supabase project settings
+      # Example: MyP@ssw0rd (NOT MyP%40ssw0rd)
+      # Note: When used separately (not in DATABASE_URL), do NOT URL-encode
       - key: DATABASE_PASSWORD
-        sync: true
+        value: "YOUR_DATABASE_PASSWORD"
       - key: DDL_AUTO
         value: "validate"
       
@@ -84,6 +99,64 @@ services:
       # Build Configuration
       - key: DOCKERFILE_VARIANT
         value: "default"
+      
+      # ============================================================================
+      # TROUBLESHOOTING DATABASE CONNECTIONS
+      # ============================================================================
+      # 
+      # How to verify your environment variables in Render dashboard:
+      # 1. Navigate to your service in Render dashboard
+      # 2. Go to "Environment" tab
+      # 3. Check that DATABASE_URL, DATABASE_USER, and DATABASE_PASSWORD are set
+      # 4. Click "Show" next to each variable to verify the values
+      # 5. Ensure DATABASE_URL has the correct format and URL-encoded password
+      # 6. Ensure DATABASE_USER matches the username in DATABASE_URL
+      # 7. Ensure DATABASE_PASSWORD is the raw password (NOT URL-encoded)
+      #
+      # What to look for in Render logs if connection fails:
+      # 
+      # SUCCESS indicators:
+      #   - "HikariPool-1 - Start completed"
+      #   - "Mapped \"{[/actuator/health]}\" onto public"
+      #   - "Started BackendApplication in X.XXX seconds"
+      #   - Health check endpoint returns 200 OK
+      #
+      # FAILURE indicators and solutions:
+      #   
+      #   Error: "Connection to localhost:5432 refused"
+      #   → DATABASE_URL is not set or incorrectly formatted
+      #   → Verify DATABASE_URL is set in Render environment variables
+      #
+      #   Error: "password authentication failed for user"
+      #   → Password is incorrect or incorrectly encoded
+      #   → Check that special characters in DATABASE_URL are URL-encoded
+      #   → Verify DATABASE_PASSWORD matches your Supabase password exactly
+      #
+      #   Error: "FATAL: database does not exist"
+      #   → Database name in URL is wrong (should be "postgres" for Supabase)
+      #   → Verify the format: ...pooler.supabase.com:6543/postgres
+      #
+      #   Error: "Connection timeout" or "Connection refused"
+      #   → Wrong host or port in DATABASE_URL
+      #   → Verify you're using the correct Supabase pooler URL
+      #   → Check if you're using port 6543 (transaction mode) or 5432 (session mode)
+      #   → Ensure your Supabase project allows connections from external IPs
+      #
+      #   Error: "No suitable driver found for jdbc:postgres://"
+      #   → DATABASE_URL should start with "postgres://" NOT "jdbc:postgresql://"
+      #   → The application converts it automatically to JDBC format
+      #
+      # How to test your connection string locally:
+      #   1. Copy your DATABASE_URL from Render
+      #   2. Set it in your local .env file
+      #   3. Run: .\mvn.ps1 spring-boot:run
+      #   4. Check logs for successful HikariPool initialization
+      #
+      # Need more help?
+      #   - Check Render logs: Dashboard → Your Service → Logs
+      #   - Check Supabase connection info: Dashboard → Project Settings → Database
+      #   - Verify network connectivity: https://supabase.com/docs/guides/platform/network-restrictions
+      # ============================================================================
 
 # Docker Registry Credentials for Docker Hub authentication
 dockerRegistryCredentials:
