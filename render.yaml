@@ -54,7 +54,7 @@ services:
       # ============================================================================
       # COMMON MISTAKES TO AVOID:
       # ============================================================================
-      # ❌ Using direct database URL: db.pejuystijjkjxjctieyb.supabase.co
+      # ❌ Using direct database URL: db.YOUR_PROJECT_REF.supabase.co
       #    ✅ Use pooler URL instead: aws-0-us-west-1.pooler.supabase.com
       #
       # ❌ Wrong port for transaction mode: 5432 when you need 6543
@@ -127,7 +127,7 @@ services:
       #
       # Example with special characters in password:
       #   Raw password: MyP@ss#123!
-      #   Insert as-is:  postgresql://postgres.pejuystijjkjxjctieyb:MyP@ss#123!@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   Insert as-is:  postgresql://postgres.YOUR_PROJECT_REF:MyP@ss#123!@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
       #   The application will automatically convert it to the properly encoded format.
       #
       # Where:
@@ -140,19 +140,19 @@ services:
       # - Using Supabase transaction pooler for eu-north-1 region (aws-1-eu-north-1.pooler.supabase.com)
       # - Port 6543: Transaction mode pooling - optimized for serverless environments like Render
       # - Transaction pooler handles connection pooling at the transaction level, ideal for web apps with many short-lived connections
-      # - This pooler URL differs from direct database connections (db.pejuystijjkjxjctieyb.supabase.co) and is specifically optimized for Render's stateless container architecture
+      # - This pooler URL differs from direct database connections (db.YOUR_PROJECT_REF.supabase.co) and is specifically optimized for Render's stateless container architecture
       #
       # TO USE: Replace [YOUR-PASSWORD] with your actual Supabase database password (keep all other parts of the URL intact)
       - key: DATABASE_URL
-        value: "postgresql://postgres.pejuystijjkjxjctieyb:[YOUR-PASSWORD]@aws-1-eu-north-1.pooler.supabase.com:6543/postgres"
+        value: "postgresql://postgres.YOUR_PROJECT_REF:[YOUR-PASSWORD]@aws-1-eu-north-1.pooler.supabase.com:6543/postgres"
       
       # DATABASE_USER: PostgreSQL username for Supabase
       # REQUIRED FORMAT: postgres.[PROJECT_REF]
       # Example: postgres.abcdefghijklmnop
       # Note: Must match the username portion of your DATABASE_URL
-      # CURRENT: Using postgres.pejuystijjkjxjctieyb for eu-north-1 Supabase project
+      # CURRENT: Using postgres.YOUR_PROJECT_REF for eu-north-1 Supabase project
       - key: DATABASE_USER
-        value: "postgres.pejuystijjkjxjctieyb"
+        value: "postgres.YOUR_PROJECT_REF"
       
       # DATABASE_PASSWORD: PostgreSQL password (RAW, NOT URL-encoded)
       # This is your original password from Supabase project settings.
@@ -166,7 +166,7 @@ services:
       
       # Supabase Configuration
       - key: SUPABASE_URL
-        value: https://pejuystijjkjxjctieyb.supabase.co
+        value: https://YOUR_PROJECT_REF.supabase.co
       - key: SUPABASE_ANON_KEY
         sync: true
       - key: SUPABASE_ROLE_KEY
@@ -267,4 +267,3 @@ dockerRegistryCredentials:
       fromEnvVar: DOCKER_HUB_PASSWORD
 
 # No database service needed - using external Supabase database
-
