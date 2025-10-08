@@ -616,6 +616,459 @@ jdbc:postgresql://aws-0-us-west-1.pooler.supabase.com:6543/postgres?user=postgre
 - **Render Network Information**: https://render.com/docs/networking
 - **PostgreSQL Connection Strings**: https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
 
+## Supabase Transaction Pooler Configuration
+
+This section provides detailed guidance on configuring Supabase's connection pooler for optimal performance and reliability, including understanding pooling modes, regional URL formats, and troubleshooting pooler-specific connection issues.
+
+### Understanding Pooling Modes
+
+Supabase offers two distinct connection pooling modes, each optimized for different use cases:
+
+#### Transaction Mode (Port 6543) - Recommended for Production
+
+**URL Format:**
+```
+postgres://postgres.PROJECT_REF:PASSWORD@aws-1-REGION.pooler.supabase.com:6543/postgres
+```
+
+**Characteristics:**
+- **Port**: 6543
+- **Connection Pool Size**: Small application-side pools recommended (maximum-pool-size=10)
+- **How It Works**: Connections are pooled at the transaction level. A server connection is assigned to a client only for the duration of a transaction. After the transaction completes, the connection returns to the pool.
+- **Concurrency**: Handles thousands of concurrent connections efficiently
+- **Use Cases**: 
+  - Production web applications
+  - Serverless deployments (e.g., AWS Lambda, Vercel)
+  - High-concurrency scenarios
+  - Applications with short-lived transactions
+
+**Limitations:**
+- Session-level PostgreSQL features unavailable:
+  - Prepared statements don't persist across transactions
+  - Temporary tables are cleared after each transaction
+  - `SET` commands (session variables) don't persist
+  - `LISTEN/NOTIFY` not supported
+
+**Connection Pool Configuration:**
+```properties
+# application-prod.properties (Transaction Mode)
+spring.datasource.hikari.maximum-pool-size=10
+spring.datasource.hikari.minimum-idle=2
+spring.datasource.hikari.connection-timeout=20000
+spring.datasource.hikari.idle-timeout=300000
+```
+
+**When to Use:**
+- ✅ Standard REST APIs with stateless operations
+- ✅ CRUD operations with automatic transaction management
+- ✅ Applications running on platforms with connection limits (Render free tier, Heroku, etc.)
+- ✅ Microservices with many instances
+- ✅ Serverless functions
+
+#### Session Mode (Port 5432) - Direct Connection
+
+**URL Format:**
+```
+postgres://postgres.PROJECT_REF:PASSWORD@db.PROJECT_REF.supabase.co:5432/postgres
+```
+
+**Characteristics:**
+- **Port**: 5432 (standard PostgreSQL port)
+- **Connection Pool Size**: Larger application-side pools supported (maximum-pool-size=20-50)
+- **How It Works**: Each client connection maps to a dedicated PostgreSQL connection for the entire session lifetime.
+- **Concurrency**: Limited by database plan (typically 60-500 connections)
+- **Use Cases**:
+  - Administrative operations
+  - Long-running queries or reports
+  - Applications requiring session-level features
+  - Database migrations
+
+**Full Feature Support:**
+- ✅ Prepared statements persist for the session
+- ✅ Temporary tables available
+- ✅ Session variables (`SET` commands) work
+- ✅ `LISTEN/NOTIFY` supported
+- ✅ Advisory locks available
+
+**Connection Pool Configuration:**
+```properties
+# application-prod.properties (Session Mode)
+spring.datasource.hikari.maximum-pool-size=20
+spring.datasource.hikari.minimum-idle=5
+spring.datasource.hikari.connection-timeout=20000
+spring.datasource.hikari.idle-timeout=600000
+```
+
+**When to Use:**
+- ✅ Background jobs requiring long-running transactions
+- ✅ Database migration scripts
+- ✅ Administrative tasks
+- ✅ Applications needing PostgreSQL-specific session features
+- ❌ **NOT recommended** for high-concurrency web applications (risk of exhausting connection pool)
+
+### Regional URL Patterns
+
+Supabase pooler URLs follow a predictable pattern based on the region where your project is hosted:
+
+#### Standard Pooler URL Format
+```
+postgres://postgres.PROJECT_REF:PASSWORD@aws-1-REGION.pooler.supabase.com:6543/postgres
+```
+
+#### Regional Examples
+
+**Europe (North) - Stockholm:**
+```
+postgres://postgres.myproject:password@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+```
+
+**Europe (West) - Ireland:**
+```
+postgres://postgres.myproject:password@aws-1-eu-west-1.pooler.supabase.com:6543/postgres
+```
+
+**Europe (Central) - Frankfurt:**
+```
+postgres://postgres.myproject:password@aws-1-eu-central-1.pooler.supabase.com:6543/postgres
+```
+
+**US East (North Virginia):**
+```
+postgres://postgres.myproject:password@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+```
+
+**US West (Oregon):**
+```
+postgres://postgres.myproject:password@aws-1-us-west-2.pooler.supabase.com:6543/postgres
+```
+
+**Asia Pacific (Singapore):**
+```
+postgres://postgres.myproject:password@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
+```
+
+**Asia Pacific (Sydney):**
+```
+postgres://postgres.myproject:password@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres
+```
+
+#### How to Find Your Region
+
+1. Log in to [Supabase Dashboard](https://app.supabase.com)
+2. Navigate to **Project Settings** → **General**
+3. Look for **Region** field (e.g., "Europe (North) - eu-north-1")
+4. Construct pooler URL: `aws-1-{region-code}.pooler.supabase.com`
+
+**Note**: Some older Supabase projects may use `aws-0-{region}` instead of `aws-1-{region}`. Check your project's database settings for the exact URL.
+
+### Troubleshooting Pooler Connection Failures
+
+Connection issues with Supabase pooler can stem from various causes. Follow these diagnostic steps:
+
+#### Step 1: Verify the Correct Port
+
+**Problem**: Using wrong port for the intended connection mode
+
+**Symptoms:**
+```
+Connection refused on port 6543
+PSQLException: Connection to localhost:6543 refused
+org.postgresql.util.PSQLException: The connection attempt failed.
+```
+
+**Solution:**
+```bash
+# Verify which port your DATABASE_URL uses
+echo $DATABASE_URL
+
+# Transaction mode MUST use port 6543:
+postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres  # ✅ Correct
+
+# Session mode (direct connection) uses port 5432:
+postgres://user:pass@db.projectref.supabase.co:5432/postgres  # ✅ Correct
+
+# Common mistakes:
+postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:5432/postgres  # ❌ Wrong port for pooler
+postgres://user:pass@db.projectref.supabase.co:6543/postgres             # ❌ Wrong port for direct
+```
+
+**Quick Test:**
+```bash
+# Test pooler connectivity (port 6543)
+nc -zv -w5 aws-1-eu-north-1.pooler.supabase.com 6543
+
+# Test direct connectivity (port 5432)
+nc -zv -w5 db.yourproject.supabase.co 5432
+```
+
+#### Step 2: Check SSL Requirements
+
+**Problem**: Missing or incorrect SSL configuration
+
+**Symptoms:**
+```
+FATAL: no pg_hba.conf entry for host
+SSL error: certificate verify failed
+javax.net.ssl.SSLHandshakeException
+```
+
+**Solution:**
+
+Supabase **requires SSL** for all connections. Ensure your DATABASE_URL includes SSL mode:
+
+```bash
+# ✅ Correct - SSL enabled
+postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require
+
+# ❌ Incorrect - SSL disabled (will fail)
+postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=disable
+
+# ⚠️ May work but insecure
+postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+```
+
+**For Spring Boot applications**, add SSL parameters to `application-prod.properties`:
+
+```properties
+# Method 1: Add sslmode to DATABASE_URL
+# DATABASE_URL=postgres://user:pass@host:6543/db?sslmode=require
+
+# Method 2: Configure via HikariCP data source properties
+spring.datasource.hikari.data-source-properties.ssl=true
+spring.datasource.hikari.data-source-properties.sslmode=require
+
+# Method 3: Add to JDBC URL parameters (if using JDBC format)
+# jdbc:postgresql://host:6543/db?sslmode=require&ssl=true
+```
+
+**Test SSL connection:**
+```bash
+# Install PostgreSQL client if needed
+apt-get update && apt-get install -y postgresql-client
+
+# Test connection with SSL
+psql "postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require"
+
+# Check SSL status after connecting
+postgres=> \conninfo
+You are connected to database "postgres" as user "postgres.myproject" on host "aws-1-eu-north-1.pooler.supabase.com" (address "x.x.x.x") at port "6543".
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, bits: 256, compression: off)
+```
+
+#### Step 3: Identify Pool Exhaustion in Transaction Mode
+
+**Problem**: Application runs out of pooler connections
+
+**Symptoms:**
+```
+HikariPool-1 - Connection is not available, request timed out after 20000ms
+FATAL: remaining connection slots are reserved
+PSQLException: FATAL: sorry, too many clients already
+Timeout after 20000ms of waiting for a connection
+```
+
+**Understanding Pool Exhaustion:**
+
+In **transaction mode**, if your application:
+- Opens connections but doesn't close them promptly
+- Has long-running transactions that hold connections
+- Has a pool size too large relative to available pooler capacity
+- Has connection leaks in application code
+
+The pooler's ability to multiplex connections can be overwhelmed.
+
+**Diagnostic Steps:**
+
+**1. Check Current Connection Pool Settings:**
+
+```bash
+# In Render logs, look for HikariCP initialization:
+HikariPool-1 - configuration:
+HikariPool-1 - maximumPoolSize......................20  # ⚠️ Too high for transaction mode
+HikariPool-1 - minimumIdle..........................5
+```
+
+**2. Monitor Connection Pool Metrics:**
+
+Add these environment variables temporarily:
+```
+LOGGING_LEVEL_COM_ZAXXER_HIKARI=DEBUG
+```
+
+Look for these log patterns:
+```
+# Connection acquisition taking too long:
+HikariPool-1 - Timeout failure stats (total=20, active=20, idle=0, waiting=5)
+
+# Frequent connection recycling (normal in transaction mode):
+HikariPool-1 - Pool stats (total=10, active=3, idle=7, waiting=0)
+```
+
+**3. Check for Connection Leaks:**
+
+Connection leaks occur when connections are acquired but never returned to the pool. Common causes:
+```java
+// ❌ BAD: Connection leak if exception occurs
+Connection conn = dataSource.getConnection();
+// ... use connection ...
+conn.close(); // Won't execute if exception thrown above
+
+// ✅ GOOD: Always close connection
+try (Connection conn = dataSource.getConnection()) {
+    // ... use connection ...
+} // Automatically closed even if exception occurs
+```
+
+Enable leak detection:
+```properties
+# application-prod.properties
+spring.datasource.hikari.leak-detection-threshold=60000  # 60 seconds
+```
+
+**4. Verify Transaction Management:**
+
+```bash
+# Look for long-running transactions in logs:
+grep -i "transaction" application.log | grep -i "timeout\|long"
+
+# Check for unclosed transactions:
+grep -i "rollback\|commit" application.log
+```
+
+**Solutions for Pool Exhaustion:**
+
+**Solution 1: Reduce Maximum Pool Size (Recommended for Transaction Mode)**
+
+```properties
+# application-prod.properties
+# For transaction mode, use SMALLER pools
+spring.datasource.hikari.maximum-pool-size=10  # Reduced from 20
+spring.datasource.hikari.minimum-idle=2        # Reduced from 5
+spring.datasource.hikari.connection-timeout=30000  # Increased to 30s
+```
+
+**Rationale**: Transaction mode is designed for high concurrency with small pools. The pooler handles multiplexing, so your application doesn't need many connections.
+
+**Solution 2: Optimize Transaction Boundaries**
+
+```java
+// ❌ BAD: Transaction spans unnecessary operations
+@Transactional
+public void processOrder(Order order) {
+    Order saved = orderRepository.save(order);
+    sendEmail(saved);  // External I/O inside transaction
+    logAudit(saved);   // Holds connection unnecessarily
+}
+
+// ✅ GOOD: Minimal transaction scope
+public void processOrder(Order order) {
+    Order saved = saveOrder(order);      // Transactional
+    sendEmail(saved);                     // Non-transactional
+    logAudit(saved);                      // Non-transactional
+}
+
+@Transactional
+private Order saveOrder(Order order) {
+    return orderRepository.save(order);
+}
+```
+
+**Solution 3: Add Connection Timeout and Retry Logic**
+
+```properties
+# application-prod.properties
+spring.datasource.hikari.connection-timeout=30000  # Wait up to 30s for connection
+spring.datasource.hikari.validation-timeout=5000   # 5s to validate connection
+spring.datasource.hikari.max-lifetime=600000       # 10 minutes max lifetime
+```
+
+**Solution 4: Monitor Supabase Dashboard**
+
+1. Go to **Supabase Dashboard** → **Database** → **Connection Pooling**
+2. Check **Active Connections** metric
+3. If consistently at maximum, consider:
+   - Upgrading Supabase plan for higher limits
+   - Reducing application pool size further
+   - Optimizing query performance
+
+**5. Quick Health Check Commands:**
+
+```bash
+# From Render shell, test connection acquisition speed:
+time psql "postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require" -c "SELECT 1"
+
+# Should complete in < 1 second. If slower:
+# - Pooler may be under heavy load
+# - Network latency issues
+# - Pool exhaustion occurring
+```
+
+**Expected Output (Healthy):**
+```bash
+ ?column? 
+----------
+        1
+(1 row)
+
+real    0m0.234s  # < 1 second = healthy
+```
+
+**Problem Indicator (Unhealthy):**
+```bash
+psql: error: connection to server at "aws-1-eu-north-1.pooler.supabase.com" (x.x.x.x), port 6543 failed: 
+FATAL: remaining connection slots are reserved
+
+real    0m20.045s  # 20+ seconds = pool exhausted
+```
+
+### Configuration Recommendations by Deployment Type
+
+#### High-Traffic Production App (Transaction Mode)
+```properties
+# application-prod.properties
+spring.datasource.url=${DATABASE_URL}?sslmode=require
+spring.datasource.hikari.maximum-pool-size=10
+spring.datasource.hikari.minimum-idle=2
+spring.datasource.hikari.connection-timeout=30000
+spring.datasource.hikari.idle-timeout=300000
+spring.datasource.hikari.max-lifetime=600000
+spring.datasource.hikari.leak-detection-threshold=60000
+```
+
+#### Background Worker / Admin Tasks (Session Mode)
+```properties
+# application-worker.properties
+spring.datasource.url=${DATABASE_URL_DIRECT}?sslmode=require
+spring.datasource.hikari.maximum-pool-size=5
+spring.datasource.hikari.minimum-idle=1
+spring.datasource.hikari.connection-timeout=60000
+spring.datasource.hikari.idle-timeout=600000
+spring.datasource.hikari.max-lifetime=1800000
+```
+
+#### Development / Testing (Direct Connection)
+```properties
+# application-dev.properties (or use H2 in-memory)
+spring.datasource.url=jdbc:postgresql://localhost:5432/odvsicilia_dev
+spring.datasource.hikari.maximum-pool-size=5
+spring.datasource.hikari.minimum-idle=2
+```
+
+### Quick Reference: Pooler vs Direct Connection
+
+| Aspect | Transaction Mode (6543) | Session Mode (5432) |
+|--------|------------------------|---------------------|
+| **URL Pattern** | `aws-1-{region}.pooler.supabase.com:6543` | `db.{project}.supabase.co:5432` |
+| **Pool Size** | Small (10 or less) | Medium-Large (20-50) |
+| **Concurrency** | Thousands of connections | Limited by plan (60-500) |
+| **Transaction Scope** | Per-transaction assignment | Full session duration |
+| **Prepared Statements** | ❌ Don't persist | ✅ Persist across queries |
+| **Temporary Tables** | ❌ Not supported | ✅ Fully supported |
+| **Session Variables** | ❌ Don't persist | ✅ Persist for session |
+| **SSL Required** | ✅ Yes (`sslmode=require`) | ✅ Yes (`sslmode=require`) |
+| **Best For** | Production web apps | Admin tasks, migrations |
+| **Cost Efficiency** | ✅ High (connection reuse) | ⚠️ Limited by plan |
+
 ## Performance Optimization
 
 ### Database Connection Pool
