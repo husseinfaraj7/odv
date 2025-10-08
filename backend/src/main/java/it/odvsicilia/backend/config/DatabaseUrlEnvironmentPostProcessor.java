@@ -21,12 +21,23 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         String databaseUrl = environment.getProperty("DATABASE_URL");
         
         if (databaseUrl == null || databaseUrl.trim().isEmpty()) {
-            logger.debug("DATABASE_URL not set, skipping conversion");
+            logger.warn("DATABASE_URL environment variable is missing or empty. " +
+                       "Application startup will fail unless spring.datasource.url is configured " +
+                       "or a dev profile with H2 is active. " +
+                       "For deployment environments like Render, ensure DATABASE_URL is set correctly.");
             return;
         }
 
+        logger.info("Original DATABASE_URL detected: {}", maskPassword(databaseUrl));
+
         if (databaseUrl.startsWith("jdbc:")) {
-            logger.debug("DATABASE_URL already in JDBC format, skipping conversion");
+            logger.info("DATABASE_URL is already in JDBC format, no conversion needed");
+            String existingUrl = environment.getProperty("spring.datasource.url");
+            if (existingUrl != null) {
+                logger.info("Resulting spring.datasource.url: {}", maskPassword(existingUrl));
+            } else {
+                logger.info("spring.datasource.url will be used from other configuration sources");
+            }
             return;
         }
 
@@ -42,12 +53,30 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
                 );
                 environment.getPropertySources().addFirst(propertySource);
                 
-                logger.info("Converted DATABASE_URL to JDBC format");
+                logger.info("DATABASE_URL conversion occurred: Standard PostgreSQL URL converted to JDBC format");
+                logger.info("Resulting spring.datasource.url: {}", maskPassword(jdbcUrl));
             } catch (Exception e) {
-                logger.error("Failed to convert DATABASE_URL to JDBC format", e);
+                logger.error("Failed to convert DATABASE_URL to JDBC format. " +
+                           "Original DATABASE_URL format: {}. Error: {}", 
+                           maskPassword(databaseUrl), e.getMessage());
                 throw new IllegalStateException("Invalid DATABASE_URL format", e);
             }
+        } else {
+            logger.warn("DATABASE_URL has unrecognized format (not postgres://, postgresql://, or jdbc:). " +
+                       "Value starts with: {}. Application may fail to connect to database.",
+                       databaseUrl.substring(0, Math.min(20, databaseUrl.length())));
         }
+    }
+
+    private String maskPassword(String url) {
+        if (url == null) {
+            return null;
+        }
+        
+        String masked = url.replaceAll("://([^:]+):([^@]+)@", "://$1:****@");
+        masked = masked.replaceAll("[&?]password=([^&]+)", "&password=****");
+        
+        return masked;
     }
 
     private String convertToJdbcUrl(String databaseUrl) throws Exception {
