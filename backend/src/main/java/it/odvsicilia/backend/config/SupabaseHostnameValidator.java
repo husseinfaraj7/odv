@@ -16,7 +16,7 @@ public class SupabaseHostnameValidator {
     private static final Pattern POOLER_HOSTNAME_PATTERN = Pattern.compile("^aws-([01])-([a-z]+-[a-z]+-[0-9]+)\\.pooler\\.supabase\\.com$");
     private static final Pattern PROJECT_REF_PATTERN = Pattern.compile("^[a-z0-9]{20}$");
 
-    public HostnameValidationResult validate(String hostname) {
+    public static HostnameValidationResult validate(String hostname) {
         if (hostname == null || hostname.trim().isEmpty()) {
             return HostnameValidationResult.invalid("Hostname is null or empty", null);
         }
@@ -47,15 +47,15 @@ public class SupabaseHostnameValidator {
         return HostnameValidationResult.invalid("Hostname is not a valid Supabase hostname", hostname);
     }
 
-    private boolean isValidDirectHostname(String hostname) {
+    private static boolean isValidDirectHostname(String hostname) {
         return DIRECT_HOSTNAME_PATTERN.matcher(hostname).matches();
     }
 
-    private boolean isValidPoolerHostname(String hostname) {
+    private static boolean isValidPoolerHostname(String hostname) {
         return POOLER_HOSTNAME_PATTERN.matcher(hostname).matches();
     }
 
-    private HostnameValidationResult buildMalformedSupabaseHostnameError(String hostname) {
+    private static HostnameValidationResult buildMalformedSupabaseHostnameError(String hostname) {
         StringBuilder errorMessage = new StringBuilder("Malformed Supabase hostname: ").append(hostname).append("\n\n");
 
         if (hostname.startsWith("db.") && hostname.contains("pooler.supabase.com")) {

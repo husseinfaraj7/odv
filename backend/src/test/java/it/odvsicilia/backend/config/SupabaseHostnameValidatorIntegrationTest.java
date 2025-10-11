@@ -15,9 +15,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("SupabaseHostnameValidator Integration Tests")
 class SupabaseHostnameValidatorIntegrationTest {
 
-    @Autowired
-    private SupabaseHostnameValidator validator;
-
     // ============================================================================
     // MALFORMED HOSTNAME TESTS - Specific patterns from requirements
     // ============================================================================
@@ -26,7 +23,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: db.aws-1-eu-north-1.supabase.co")
     void testMalformedHostname_MixedDirectPoolerFormat1() {
         String hostname = "db.aws-1-eu-north-1.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject mixed direct/pooler format");
         assertTrue(result.isInvalid());
@@ -42,7 +39,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: db.pooler.supabase.com")
     void testMalformedHostname_MixedDirectPoolerFormat2() {
         String hostname = "db.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject mixed direct/pooler format");
         assertTrue(result.isInvalid());
@@ -58,7 +55,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: db.aws-0-us-east-1.pooler.supabase.com")
     void testMalformedHostname_DirectPrefixWithPoolerSuffix() {
         String hostname = "db.aws-0-us-east-1.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject hostname with both 'db.' prefix and pooler suffix");
         assertTrue(result.getErrorMessage().contains("Mixed format") || 
@@ -72,7 +69,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: aws-1-eu-north-1.supabase.co")
     void testMalformedHostname_PoolerFormatWithDirectDomain() {
         String hostname = "aws-1-eu-north-1.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject pooler format with .supabase.co domain");
         assertTrue(result.getErrorMessage().contains(".pooler.supabase.com"),
@@ -83,7 +80,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: eu-north-1.pooler.supabase.com")
     void testMalformedHostname_MissingPoolerIndex() {
         String hostname = "eu-north-1.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject pooler hostname without aws-INDEX- prefix");
         assertTrue(result.getErrorMessage().contains("aws-0-") || result.getErrorMessage().contains("aws-1-"),
@@ -94,7 +91,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: aws-0.pooler.supabase.com")
     void testMalformedHostname_MissingRegion() {
         String hostname = "aws-0.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject pooler hostname without region");
         assertNotNull(result.getErrorMessage());
@@ -104,7 +101,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: aws-0-us-east.pooler.supabase.com")
     void testMalformedHostname_InvalidRegionFormat() {
         String hostname = "aws-0-us-east.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject hostname with invalid region format");
         assertTrue(result.getErrorMessage().contains("region") || result.getErrorMessage().contains("REGION"),
@@ -115,7 +112,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: projectref.supabase.co")
     void testMalformedHostname_MissingDbPrefix() {
         String hostname = "abcdefghij1234567890.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject hostname without 'db.' prefix");
         assertTrue(result.getErrorMessage().contains("db."),
@@ -126,7 +123,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: db.short.supabase.co")
     void testMalformedHostname_InvalidProjectRefLength() {
         String hostname = "db.short.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject hostname with invalid project ref length");
         assertTrue(result.getErrorMessage().contains("20"),
@@ -137,7 +134,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: db.UPPERCASEREFERENCE1.supabase.co")
     void testMalformedHostname_UppercaseProjectRef() {
         String hostname = "db.UPPERCASEREFERENCE1.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject hostname with uppercase characters");
     }
@@ -150,7 +147,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should accept valid direct hostname: db.abcdefghij1234567890.supabase.co")
     void testValidDirectHostname_Standard() {
         String hostname = "db.abcdefghij1234567890.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid(), "Should accept valid direct connection hostname");
         assertFalse(result.isInvalid());
@@ -167,7 +164,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should accept valid direct hostname with different project ref")
     void testValidDirectHostname_DifferentProjectRef() {
         String hostname = "db.xyz123abc456def78901.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid());
         assertEquals(SupabaseHostnameValidator.HostnameType.DIRECT, result.getType());
@@ -178,7 +175,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should accept valid direct hostname with all lowercase letters")
     void testValidDirectHostname_AllLowercase() {
         String hostname = "db.abcdefghijklmnopqrst.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid());
         assertEquals("abcdefghijklmnopqrst", result.getProjectRef());
@@ -188,7 +185,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should accept valid direct hostname with all numbers")
     void testValidDirectHostname_AllNumbers() {
         String hostname = "db.12345678901234567890.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid());
         assertEquals("12345678901234567890", result.getProjectRef());
@@ -202,7 +199,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should accept valid pooler hostname: aws-0-eu-north-1.pooler.supabase.com")
     void testValidPoolerHostname_EuNorth1_Index0() {
         String hostname = "aws-0-eu-north-1.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid(), "Should accept valid pooler connection hostname");
         assertFalse(result.isInvalid());
@@ -219,7 +216,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should accept valid pooler hostname: aws-1-eu-north-1.pooler.supabase.com")
     void testValidPoolerHostname_EuNorth1_Index1() {
         String hostname = "aws-1-eu-north-1.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid());
         assertEquals(SupabaseHostnameValidator.HostnameType.POOLER, result.getType());
@@ -231,7 +228,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should accept valid pooler hostname: aws-0-us-east-1.pooler.supabase.com")
     void testValidPoolerHostname_UsEast1_Index0() {
         String hostname = "aws-0-us-east-1.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid());
         assertEquals(SupabaseHostnameValidator.HostnameType.POOLER, result.getType());
@@ -243,7 +240,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should accept valid pooler hostname: aws-1-us-east-1.pooler.supabase.com")
     void testValidPoolerHostname_UsEast1_Index1() {
         String hostname = "aws-1-us-east-1.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid());
         assertEquals("us-east-1", result.getRegion());
@@ -254,7 +251,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should accept valid pooler hostname: aws-0-ap-southeast-1.pooler.supabase.com")
     void testValidPoolerHostname_ApSoutheast1_Index0() {
         String hostname = "aws-0-ap-southeast-1.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid());
         assertEquals(SupabaseHostnameValidator.HostnameType.POOLER, result.getType());
@@ -266,7 +263,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should accept valid pooler hostname: aws-1-ap-southeast-1.pooler.supabase.com")
     void testValidPoolerHostname_ApSoutheast1_Index1() {
         String hostname = "aws-1-ap-southeast-1.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid());
         assertEquals("ap-southeast-1", result.getRegion());
@@ -286,7 +283,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     })
     @DisplayName("Should accept valid pooler hostnames for various AWS regions")
     void testValidPoolerHostname_VariousRegions(String hostname) {
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid(), "Should accept valid pooler hostname: " + hostname);
         assertEquals(SupabaseHostnameValidator.HostnameType.POOLER, result.getType());
@@ -302,7 +299,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @Test
     @DisplayName("Should reject null hostname")
     void testEdgeCase_NullHostname() {
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(null);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(null);
 
         assertFalse(result.isValid());
         assertTrue(result.isInvalid());
@@ -313,7 +310,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @Test
     @DisplayName("Should reject empty hostname")
     void testEdgeCase_EmptyHostname() {
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate("");
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate("");
 
         assertFalse(result.isValid());
         assertNotNull(result.getErrorMessage());
@@ -322,7 +319,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @Test
     @DisplayName("Should reject whitespace-only hostname")
     void testEdgeCase_WhitespaceHostname() {
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate("   ");
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate("   ");
 
         assertFalse(result.isValid());
         assertNotNull(result.getErrorMessage());
@@ -332,7 +329,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should handle hostname with leading/trailing whitespace")
     void testEdgeCase_HostnameWithWhitespace() {
         String hostname = "  db.abcdefghij1234567890.supabase.co  ";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid(), "Should accept valid hostname after trimming whitespace");
         assertEquals("db.abcdefghij1234567890.supabase.co", result.getHostname());
@@ -342,7 +339,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should handle uppercase hostname (normalize to lowercase)")
     void testEdgeCase_UppercaseHostname() {
         String hostname = "DB.ABCDEFGHIJ1234567890.SUPABASE.CO";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertTrue(result.isValid(), "Should accept valid hostname after normalizing to lowercase");
         assertEquals("db.abcdefghij1234567890.supabase.co", result.getHostname());
@@ -356,7 +353,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject hostname with port included: db.abc.supabase.co:5432")
     void testEdgeCase_HostnameWithPort() {
         String hostname = "db.abcdefghij1234567890.supabase.co:5432";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Hostname should not include port specification");
     }
@@ -369,7 +366,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should provide clear error message distinguishing direct vs pooler for mixed format")
     void testErrorMessage_MixedFormatClarification() {
         String hostname = "db.aws-0-eu-north-1.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid());
         String errorMsg = result.getErrorMessage();
@@ -384,7 +381,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should provide error message with valid format examples")
     void testErrorMessage_ContainsExamples() {
         String hostname = "invalid.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid());
         String errorMsg = result.getErrorMessage();
@@ -396,7 +393,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should provide error message mentioning region requirements for pooler")
     void testErrorMessage_PoolerRegionRequirements() {
         String hostname = "aws-0.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid());
         String errorMsg = result.getErrorMessage();
@@ -408,7 +405,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should provide error message mentioning project ref requirements for direct")
     void testErrorMessage_DirectProjectRefRequirements() {
         String hostname = "db.short.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid());
         String errorMsg = result.getErrorMessage();
@@ -424,7 +421,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject non-Supabase hostname: localhost")
     void testNonSupabaseHostname_Localhost() {
         String hostname = "localhost";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid());
         assertFalse(result.getErrorMessage().contains("malformed") || result.getErrorMessage().contains("Malformed"),
@@ -435,7 +432,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject non-Supabase hostname: postgres.example.com")
     void testNonSupabaseHostname_Generic() {
         String hostname = "postgres.example.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid());
         assertNotNull(result.getErrorMessage());
@@ -449,7 +446,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: pooler.supabase.com")
     void testMalformedHostname_OnlyPoolerSuffix() {
         String hostname = "pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().toLowerCase().contains("pooler"));
@@ -459,7 +456,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: db.supabase.co")
     void testMalformedHostname_MissingProjectRef() {
         String hostname = "db.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid());
         assertNotNull(result.getErrorMessage());
@@ -469,7 +466,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname: aws-2-eu-north-1.pooler.supabase.com")
     void testMalformedHostname_InvalidPoolerIndex() {
         String hostname = "aws-2-eu-north-1.pooler.supabase.com";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Should reject invalid pooler index (only 0 and 1 are valid)");
     }
@@ -478,7 +475,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     @DisplayName("Should reject malformed hostname with special characters in project ref")
     void testMalformedHostname_SpecialCharsInProjectRef() {
         String hostname = "db.abc-def_123456789012.supabase.co";
-        SupabaseHostnameValidator.HostnameValidationResult result = validator.validate(hostname);
+        SupabaseHostnameValidator.HostnameValidationResult result = SupabaseHostnameValidator.validate(hostname);
 
         assertFalse(result.isValid(), "Project ref should only contain alphanumeric characters");
     }
@@ -498,7 +495,7 @@ class SupabaseHostnameValidatorIntegrationTest {
     void testValidatorFunctional() {
         assertNotNull(validator);
         SupabaseHostnameValidator.HostnameValidationResult result = 
-            validator.validate("db.abcdefghij1234567890.supabase.co");
+            SupabaseHostnameValidator.validate("db.abcdefghij1234567890.supabase.co");
         assertNotNull(result);
         assertTrue(result.isValid());
     }
@@ -516,3 +513,5 @@ class SupabaseHostnameValidatorIntegrationTest {
             SupabaseHostnameValidator.HostnameType.POOLER.getDescription());
     }
 }
+
+
