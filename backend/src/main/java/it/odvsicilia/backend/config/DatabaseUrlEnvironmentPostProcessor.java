@@ -10,6 +10,7 @@ import org.springframework.core.env.MapPropertySource;
 import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
@@ -42,11 +43,6 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         }
 
         logger.info("Original DATABASE_URL detected: {}", maskPassword(databaseUrl));
-        
-        SupabaseHostnameValidator.ValidationResult validationResult = SupabaseHostnameValidator.validate(databaseUrl);
-        if (!validationResult.isValid()) {
-            throw new IllegalStateException(validationResult.getMessage());
-        }
         
         DatabaseConnectivityValidator.validateDatabaseConnectivity(databaseUrl);
 
@@ -120,6 +116,11 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
     }
 
     private String autoSelectConnection(String databaseUrl) {
+        if (databaseUrl == null || databaseUrl.trim().isEmpty()) {
+            logger.warn("Cannot auto-select connection: DATABASE_URL is null or empty. Using original URL.");
+            return databaseUrl;
+        }
+        
         try {
             String[] hostPort = extractHostAndPort(databaseUrl);
             String hostname = hostPort[0];
@@ -132,13 +133,30 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
                 logger.warn("Connection mode 'auto' selected: pooler connectivity test failed or not using pooler port, falling back to direct database connection");
                 return convertToDirectConnection(databaseUrl);
             }
+        } catch (IllegalArgumentException e) {
+            logger.error("Failed to extract hostname for auto-connection selection from DATABASE_URL: {}", maskPassword(databaseUrl));
+            logger.error("Error: {}", e.getMessage());
+            logger.error("Unable to determine optimal connection mode. Using original DATABASE_URL as-is.");
+            logger.error("See earlier logs for troubleshooting guidance on correct DATABASE_URL format.");
+            return databaseUrl;
+        } catch (URISyntaxException e) {
+            logger.error("Failed to parse DATABASE_URL for auto-connection selection: {}", maskPassword(databaseUrl));
+            logger.error("URI syntax error: {}", e.getMessage());
+            logger.error("Unable to determine optimal connection mode. Using original DATABASE_URL as-is.");
+            return databaseUrl;
         } catch (Exception e) {
-            logger.warn("Connection mode 'auto' selected: failed to test pooler connectivity ({}), falling back to direct database connection", e.getMessage());
+            logger.error("Unexpected error during auto-connection selection: {}", e.getMessage());
+            logger.error("Unable to determine optimal connection mode. Falling back to direct connection.");
             return convertToDirectConnection(databaseUrl);
         }
     }
 
     private String convertToDirectConnection(String databaseUrl) {
+        if (databaseUrl == null || databaseUrl.trim().isEmpty()) {
+            logger.warn("Cannot convert to direct connection: DATABASE_URL is null or empty. Using original URL.");
+            return databaseUrl;
+        }
+        
         try {
             String[] hostPort = extractHostAndPort(databaseUrl);
             String hostname = hostPort[0];
@@ -168,8 +186,20 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
             }
             
             return newUrl;
+        } catch (IllegalArgumentException e) {
+            logger.error("Failed to convert to direct connection - hostname extraction failed from DATABASE_URL: {}", maskPassword(databaseUrl));
+            logger.error("Error: {}", e.getMessage());
+            logger.error("Returning original DATABASE_URL. Direct connection conversion skipped.");
+            return databaseUrl;
+        } catch (URISyntaxException e) {
+            logger.error("Failed to convert to direct connection - URI syntax error in DATABASE_URL: {}", maskPassword(databaseUrl));
+            logger.error("Error: {}", e.getMessage());
+            logger.error("Returning original DATABASE_URL. Direct connection conversion skipped.");
+            return databaseUrl;
         } catch (Exception e) {
-            logger.error("Failed to convert to direct connection: {}", e.getMessage());
+            logger.error("Failed to convert to direct connection due to unexpected error: {}", e.getMessage());
+            logger.error("DATABASE_URL: {}", maskPassword(databaseUrl));
+            logger.error("Returning original DATABASE_URL. Direct connection conversion skipped.");
             return databaseUrl;
         }
     }
@@ -211,6 +241,14 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
     private void performNetworkDiagnostics(String databaseUrl) {
         logger.info("=== Database Network Diagnostics ===");
         
+        if (databaseUrl == null || databaseUrl.trim().isEmpty()) {
+            logger.warn("Cannot perform network diagnostics: DATABASE_URL is null or empty");
+            logger.warn("Please set DATABASE_URL to a valid PostgreSQL connection string");
+            logger.warn("Expected format: postgres://username:password@hostname:port/database");
+            logger.warn("Example: postgres://postgres:mypassword@db.myproject.supabase.co:5432/postgres");
+            return;
+        }
+        
         try {
             String[] hostPort = extractHostAndPort(databaseUrl);
             String hostname = hostPort[0];
@@ -223,8 +261,60 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
             performTcpConnectivityTest(hostname, port);
             
             logger.info("=== Network Diagnostics Complete ===");
+        } catch (IllegalArgumentException e) {
+            logger.error("=== HOSTNAME EXTRACTION FAILED ===");
+            logger.error("Failed to extract hostname from DATABASE_URL: {}", maskPassword(databaseUrl));
+            logger.error("Error: {}", e.getMessage());
+            logger.error("");
+            logger.error("Expected DATABASE_URL format:");
+            logger.error("  postgres://username:password@hostname:port/database");
+            logger.error("  or");
+            logger.error("  postgresql://username:password@hostname:port/database");
+            logger.error("");
+            logger.error("Examples of valid DATABASE_URL values:");
+            logger.error("  1. Supabase pooler: postgres://postgres.project:password@aws-0-us-east-1.pooler.supabase.com:6543/postgres");
+            logger.error("  2. Supabase direct:  postgres://postgres:password@db.project.supabase.co:5432/postgres");
+            logger.error("  3. Generic:          postgres://myuser:mypass@myhost.com:5432/mydb");
+            logger.error("");
+            logger.error("Troubleshooting steps:");
+            logger.error("  1. Verify the DATABASE_URL contains '://' after the scheme (postgres or postgresql)");
+            logger.error("  2. Ensure the hostname is present after '@' symbol");
+            logger.error("  3. Check that the port number (if specified) is a valid integer");
+            logger.error("  4. Confirm there are no extra spaces or special characters");
+            logger.error("  5. For Supabase, copy the connection string from your project dashboard");
+            logger.error("");
+            logger.error("Network diagnostics will be skipped, but environment property processing will continue");
+            logger.error("=================================");
+        } catch (URISyntaxException e) {
+            logger.error("=== HOSTNAME EXTRACTION FAILED ===");
+            logger.error("Failed to parse DATABASE_URL due to URI syntax error: {}", maskPassword(databaseUrl));
+            logger.error("Error: {}", e.getMessage());
+            logger.error("");
+            logger.error("The DATABASE_URL contains invalid URI syntax. Common issues:");
+            logger.error("  - Invalid characters in username, password, or hostname");
+            logger.error("  - Special characters in password that need URL encoding");
+            logger.error("  - Malformed port specification");
+            logger.error("");
+            logger.error("If your password contains special characters (@, :, /, ?, #, etc.), they must be URL-encoded:");
+            logger.error("  @ becomes %40");
+            logger.error("  : becomes %3A");
+            logger.error("  / becomes %2F");
+            logger.error("  ? becomes %3F");
+            logger.error("  # becomes %23");
+            logger.error("");
+            logger.error("Network diagnostics will be skipped, but environment property processing will continue");
+            logger.error("=================================");
         } catch (Exception e) {
-            logger.warn("Network diagnostics failed: {}", e.getMessage());
+            logger.error("=== HOSTNAME EXTRACTION FAILED ===");
+            logger.error("Unexpected error while extracting hostname from DATABASE_URL: {}", maskPassword(databaseUrl));
+            logger.error("Error type: {}", e.getClass().getName());
+            logger.error("Error message: {}", e.getMessage());
+            logger.error("");
+            logger.error("Please verify your DATABASE_URL is valid and follows the format:");
+            logger.error("  postgres://username:password@hostname:port/database");
+            logger.error("");
+            logger.error("Network diagnostics will be skipped, but environment property processing will continue");
+            logger.error("=================================");
         }
     }
 
@@ -342,10 +432,14 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         }
     }
 
-    private String[] extractHostAndPort(String databaseUrl) throws Exception {
+    private String[] extractHostAndPort(String databaseUrl) throws IllegalArgumentException, URISyntaxException {
+        if (databaseUrl == null || databaseUrl.trim().isEmpty()) {
+            throw new IllegalArgumentException("DATABASE_URL is null or empty");
+        }
+        
         int schemeEnd = databaseUrl.indexOf("://");
         if (schemeEnd == -1) {
-            throw new IllegalArgumentException("Invalid DATABASE_URL: missing scheme");
+            throw new IllegalArgumentException("Missing scheme (expected 'postgres://' or 'postgresql://')");
         }
         
         String afterScheme = databaseUrl.substring(schemeEnd + 3);
@@ -379,14 +473,18 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
             try {
                 port = Integer.parseInt(hostPart.substring(colonIndex + 1));
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid port number in DATABASE_URL");
+                throw new IllegalArgumentException("Invalid port number '" + hostPart.substring(colonIndex + 1) + "' (must be a valid integer)");
             }
         } else {
             host = hostPart;
         }
         
         if (host == null || host.trim().isEmpty()) {
-            throw new IllegalArgumentException("Invalid DATABASE_URL: missing host");
+            throw new IllegalArgumentException("Missing hostname after '@' symbol");
+        }
+        
+        if (host.contains("[") || host.contains("]") || host.contains(" ") || host.contains("<") || host.contains(">")) {
+            throw new URISyntaxException(databaseUrl, "Invalid characters in hostname: " + host);
         }
         
         return new String[]{host, String.valueOf(port)};
