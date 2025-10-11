@@ -274,6 +274,263 @@ services:
       # - Check Supabase logs: Dashboard → Logs → Query logs for connection attempts
       #
       # ============================================================================
+      # DATABASE_URL CONFIGURATION - COMPREHENSIVE GUIDE
+      # ============================================================================
+      #
+      # This section provides detailed guidance on configuring DATABASE_URL for
+      # Supabase connections, including correct hostname formats, validation steps,
+      # and troubleshooting for common connection errors.
+      #
+      # ============================================================================
+      # HOSTNAME FORMAT REFERENCE
+      # ============================================================================
+      #
+      # ⚠️  CRITICAL: Use the CORRECT hostname format for your connection type!
+      #
+      # DIRECT CONNECTION Format (bypasses pooler):
+      # ────────────────────────────────────────────────────────────────────────
+      #   Hostname pattern: db.[PROJECT_REF].supabase.co
+      #   Port:             5432
+      #   Full example:     db.abcdefghijklmnop.supabase.co:5432
+      #   
+      #   Components breakdown:
+      #   ┌─────────────────────────────────────────┐
+      #   │ db.abcdefghijklmnop.supabase.co:5432    │
+      #   │ └┬┘ └──────┬──────┘  └────┬───┘ └┬┘     │
+      #   │  │         │              │      │      │
+      #   │  │         │              │      └─ Port (always 5432 for direct)
+      #   │  │         │              └─ Domain suffix (always "supabase.co")
+      #   │  │         └─ Your project reference (16 chars)
+      #   │  └─ Direct connection prefix (always "db")
+      #   └─────────────────────────────────────────┘
+      #
+      # TRANSACTION POOLER Format (recommended for production):
+      # ────────────────────────────────────────────────────────────────────────
+      #   Hostname pattern: aws-0-[REGION].pooler.supabase.com
+      #                     aws-1-[REGION].pooler.supabase.com
+      #   Port:             6543
+      #   Example:          aws-0-eu-north-1.pooler.supabase.com:6543
+      #   
+      #   Components breakdown:
+      #   ┌────────────────────────────────────────────────────┐
+      #   │ aws-0-eu-north-1.pooler.supabase.com:6543          │
+      #   │ └─┬─┘ └───┬────┘ └──┬──┘ └────┬───┘  └┬┘          │
+      #   │   │       │         │         │       │           │
+      #   │   │       │         │         │       └─ Port (6543 for transaction)
+      #   │   │       │         │         └─ Domain (always "supabase.com")
+      #   │   │       │         └─ Pooler indicator
+      #   │   │       └─ AWS region code (e.g., eu-north-1, us-east-1)
+      #   │   └─ Pooler version (aws-0 or aws-1)
+      #   └────────────────────────────────────────────────────┘
+      #
+      # SESSION POOLER Format (for specific PostgreSQL features):
+      # ────────────────────────────────────────────────────────────────────────
+      #   Hostname pattern: aws-0-[REGION].pooler.supabase.com
+      #                     aws-1-[REGION].pooler.supabase.com
+      #   Port:             5432
+      #   Example:          aws-0-us-east-1.pooler.supabase.com:5432
+      #
+      # ⚠️  WARNING: COMMON HOSTNAME FORMAT MISTAKES ⚠️
+      # ────────────────────────────────────────────────────────────────────────
+      #
+      # ❌ WRONG: db.aws-0-eu-north-1.supabase.co
+      #    (Mixing direct "db." prefix with pooler region pattern)
+      #    ✅ CORRECT: Either "db.[PROJECT_REF].supabase.co" 
+      #                OR "aws-0-[REGION].pooler.supabase.com"
+      #
+      # ❌ WRONG: aws-0-eu-north-1.supabase.co:6543
+      #    (Using .supabase.co instead of .supabase.com for pooler)
+      #    ✅ CORRECT: aws-0-eu-north-1.pooler.supabase.com:6543
+      #
+      # ❌ WRONG: aws-0-eu-north-1.pooler.supabase.com:5432
+      #    (Using port 5432 for transaction pooler - this is session mode)
+      #    ✅ CORRECT: aws-0-eu-north-1.pooler.supabase.com:6543 (transaction)
+      #                OR aws-0-eu-north-1.pooler.supabase.com:5432 (session)
+      #
+      # ❌ WRONG: db.abcdefgh.supabase.co:6543
+      #    (Using port 6543 with direct connection)
+      #    ✅ CORRECT: db.abcdefgh.supabase.co:5432
+      #
+      # ❌ WRONG: pooler.aws-0-us-east-1.supabase.com
+      #    (Incorrect component order)
+      #    ✅ CORRECT: aws-0-us-east-1.pooler.supabase.com
+      #
+      # ❌ WRONG: aws-0-us-east.pooler.supabase.com
+      #    (Incomplete region code - missing "-1" suffix)
+      #    ✅ CORRECT: aws-0-us-east-1.pooler.supabase.com
+      #
+      # ❌ WRONG: Copying "aws-0-eu-north-1.pooler.supabase..." from dashboard
+      #           but hostname gets truncated/incomplete
+      #    ✅ CORRECT: Always use the "Copy" button in Supabase dashboard,
+      #                don't manually select/copy text (may be truncated)
+      #
+      # ============================================================================
+      # HOSTNAME VALIDATION CHECKLIST
+      # ============================================================================
+      #
+      # Before deploying, verify your DATABASE_URL hostname is correct:
+      #
+      # ☐ 1. Identify your connection type
+      #      - Using pooler? Hostname must contain ".pooler.supabase.com"
+      #      - Direct connection? Hostname must be "db.[PROJECT_REF].supabase.co"
+      #
+      # ☐ 2. Check for malformed 'db.aws-*' patterns
+      #      - ❌ Invalid: "db.aws-0-eu-north-1" (mixing direct + pooler)
+      #      - ✅ Valid direct: "db.abcdefghijklmnop.supabase.co"
+      #      - ✅ Valid pooler: "aws-0-eu-north-1.pooler.supabase.com"
+      #
+      # ☐ 3. Verify project reference is included (direct connections only)
+      #      - Format: db.[16-CHAR-PROJECT-REF].supabase.co
+      #      - Example: db.abcdefghijklmnop.supabase.co
+      #      - Find your project ref: Dashboard → Settings → General → "Reference ID"
+      #
+      # ☐ 4. Confirm region code is correct (pooler connections only)
+      #      - Check project region: Dashboard → Settings → General → "Region"
+      #      - Common regions: eu-north-1, us-east-1, us-west-1, ap-southeast-1
+      #      - Region must match exactly: aws-0-[EXACT-REGION].pooler.supabase.com
+      #      - ❌ Invalid: "us-east" (missing "-1")
+      #      - ✅ Valid: "us-east-1"
+      #
+      # ☐ 5. Verify domain suffix matches connection type
+      #      - Direct connection: must end with ".supabase.co"
+      #      - Pooler connection: must end with ".supabase.com"
+      #      - ❌ Don't mix: "aws-0-us-east-1.pooler.supabase.co" is WRONG
+      #
+      # ☐ 6. Check port number matches connection mode
+      #      - Direct connection: always port 5432
+      #      - Transaction pooler: port 6543 (recommended)
+      #      - Session pooler: port 5432
+      #      - ❌ Don't use 6543 with direct connection
+      #      - ❌ Don't use 5432 with transaction pooler (unless you want session mode)
+      #
+      # ☐ 7. Ensure no truncated or incomplete hostname
+      #      - Hostname should be complete when copied from dashboard
+      #      - Use the "Copy" button, don't manually select text
+      #      - Verify the full hostname is present in your DATABASE_URL
+      #
+      # ☐ 8. Validate hostname format with pattern matching
+      #      Direct connection pattern:
+      #        ^db\.[a-z0-9]{16}\.supabase\.co:5432$
+      #      
+      #      Transaction pooler pattern:
+      #        ^aws-[01]-[a-z]{2}-[a-z]+-[12]\.pooler\.supabase\.com:6543$
+      #      
+      #      Session pooler pattern:
+      #        ^aws-[01]-[a-z]{2}-[a-z]+-[12]\.pooler\.supabase\.com:5432$
+      #
+      # ============================================================================
+      # UNKNOWNHOSTEXCEPTION TROUBLESHOOTING
+      # ============================================================================
+      #
+      # Error: "java.net.UnknownHostException" or "Unknown host"
+      # ────────────────────────────────────────────────────────────────────────
+      #
+      # This error means the hostname in your DATABASE_URL cannot be resolved to
+      # an IP address. It can be caused by wrong hostname format OR DNS issues.
+      #
+      # STEP 1: Identify if it's a hostname format issue vs. DNS issue
+      # ────────────────────────────────────────────────────────────────────────
+      #
+      # A. Check the exact hostname in the error message
+      #    
+      #    Look for the hostname mentioned in the error:
+      #      "UnknownHostException: db.aws-0-eu-north-1.supabase.co"
+      #                             └──────────────┬─────────────────┘
+      #                                   This is the problematic hostname
+      #
+      # B. Compare against valid formats (see HOSTNAME FORMAT REFERENCE above)
+      #    
+      #    Ask yourself:
+      #    - Does it start with "db." AND contain region pattern like "aws-0-"? 
+      #      → ❌ WRONG FORMAT (mixing direct and pooler)
+      #    
+      #    - Does it use ".supabase.co" with a pooler pattern?
+      #      → ❌ WRONG FORMAT (pooler needs ".supabase.com")
+      #    
+      #    - Does it use ".supabase.com" with "db." prefix?
+      #      → ❌ WRONG FORMAT (direct needs ".supabase.co")
+      #    
+      #    - Is the region code incomplete (e.g., "us-east" instead of "us-east-1")?
+      #      → ❌ WRONG FORMAT (region must be complete)
+      #
+      # C. Test hostname resolution locally
+      #    
+      #    On Windows (PowerShell):
+      #      nslookup aws-0-eu-north-1.pooler.supabase.com
+      #    
+      #    On macOS/Linux:
+      #      dig aws-0-eu-north-1.pooler.supabase.com
+      #      # OR
+      #      host aws-0-eu-north-1.pooler.supabase.com
+      #    
+      #    Expected result:
+      #    - If hostname is CORRECT: You'll see an IP address (e.g., 54.xxx.xxx.xxx)
+      #    - If hostname is WRONG: "NXDOMAIN" or "can't find" error
+      #
+      # STEP 2: Fix hostname format issues (MOST COMMON CAUSE)
+      # ────────────────────────────────────────────────────────────────────────
+      #
+      # If hostname doesn't match valid formats, fix it:
+      #
+      # 1. Go to Supabase Dashboard → Your Project → Settings → Database
+      # 2. Find "Connection String" section
+      # 3. Select appropriate mode:
+      #    - For transaction pooler: Select "Transaction" dropdown option
+      #    - For session pooler: Select "Session" dropdown option
+      #    - For direct: Select "Direct Connection" (not recommended for Render)
+      # 4. Click the "Copy" button (don't manually select text)
+      # 5. Extract the hostname from the copied connection string
+      # 6. Update your DATABASE_URL environment variable in Render dashboard
+      #
+      # Example of extracting hostname:
+      #   Copied string:
+      #     postgresql://postgres.abc123:pass@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+      #   
+      #   Hostname is:
+      #     aws-0-us-east-1.pooler.supabase.com
+      #   
+      #   Your DATABASE_URL should contain this exact hostname.
+      #
+      # STEP 3: Fix DNS issues (RARE, but possible)
+      # ────────────────────────────────────────────────────────────────────────
+      #
+      # If hostname format is correct but still getting UnknownHostException:
+      #
+      # 1. Check Supabase status page: https://status.supabase.com
+      #    - Look for any ongoing incidents or outages
+      #    - Check if your region is affected
+      #
+      # 2. Verify your project is active (not paused)
+      #    - Go to: Dashboard → Your Project
+      #    - Look for "Active" status indicator (should be green)
+      #    - If paused: Click "Restore" and wait 2-3 minutes
+      #
+      # 3. Check Render's network status
+      #    - Visit: https://status.render.com
+      #    - Look for network or DNS-related incidents
+      #
+      # 4. Try alternative pooler endpoint (if using aws-0, try aws-1 or vice versa)
+      #    - aws-0-eu-north-1.pooler.supabase.com
+      #    - aws-1-eu-north-1.pooler.supabase.com
+      #    (Both should work, they're just different pooler instances)
+      #
+      # 5. Test from different network
+      #    - If works locally but fails on Render, contact Render support
+      #    - If fails everywhere, contact Supabase support
+      #
+      # STEP 4: Verification after fixing
+      # ────────────────────────────────────────────────────────────────────────
+      #
+      # After updating DATABASE_URL:
+      #
+      # 1. Redeploy your Render service or trigger manual deploy
+      # 2. Check logs for successful connection:
+      #    - Look for: "HikariPool-1 - Start completed"
+      #    - Should NOT see: UnknownHostException
+      # 3. Test API endpoint: https://your-app.onrender.com/actuator/health
+      # 4. If still failing, review STEP 1 again with the new error message
+      #
+      # ============================================================================
       # REGIONAL DATABASE_URL EXAMPLES
       # ============================================================================
       #
@@ -282,42 +539,66 @@ services:
       #
       # EUROPE - North 1 (Stockholm) [eu-north-1]
       # ────────────────────────────────────────────────────────────────────────
-      # Transaction pooler (Port 6543) - Recommended:
+      # Transaction pooler (Port 6543) - ⭐ RECOMMENDED for production:
       #   postgresql://postgres.abcd1234:MyP@ssw0rd@aws-0-eu-north-1.pooler.supabase.com:6543/postgres
       #   postgresql://postgres.abcd1234:MyP@ssw0rd@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   
+      #   Hostname only: aws-0-eu-north-1.pooler.supabase.com
+      #   Hostname only: aws-1-eu-north-1.pooler.supabase.com
       # 
       # Session pooler (Port 5432):
       #   postgresql://postgres.abcd1234:MyP@ssw0rd@aws-0-eu-north-1.pooler.supabase.com:5432/postgres
       #   postgresql://postgres.abcd1234:MyP@ssw0rd@aws-1-eu-north-1.pooler.supabase.com:5432/postgres
+      #   
+      #   Hostname only: aws-0-eu-north-1.pooler.supabase.com
+      #   Hostname only: aws-1-eu-north-1.pooler.supabase.com
       # 
-      # Direct connection (no pooler):
+      # Direct connection (Port 5432) - NOT recommended for Render:
       #   postgresql://postgres.abcd1234:MyP@ssw0rd@db.abcd1234.supabase.co:5432/postgres
+      #   
+      #   Hostname only: db.abcd1234.supabase.co
       #
       # UNITED STATES - East 1 (N. Virginia) [us-east-1]
       # ────────────────────────────────────────────────────────────────────────
-      # Transaction pooler (Port 6543) - Recommended:
+      # Transaction pooler (Port 6543) - ⭐ RECOMMENDED for production:
       #   postgresql://postgres.xyz789:SecretP@ss@aws-0-us-east-1.pooler.supabase.com:6543/postgres
       #   postgresql://postgres.xyz789:SecretP@ss@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+      #   
+      #   Hostname only: aws-0-us-east-1.pooler.supabase.com
+      #   Hostname only: aws-1-us-east-1.pooler.supabase.com
       # 
       # Session pooler (Port 5432):
       #   postgresql://postgres.xyz789:SecretP@ss@aws-0-us-east-1.pooler.supabase.com:5432/postgres
       #   postgresql://postgres.xyz789:SecretP@ss@aws-1-us-east-1.pooler.supabase.com:5432/postgres
+      #   
+      #   Hostname only: aws-0-us-east-1.pooler.supabase.com
+      #   Hostname only: aws-1-us-east-1.pooler.supabase.com
       # 
-      # Direct connection (no pooler):
+      # Direct connection (Port 5432) - NOT recommended for Render:
       #   postgresql://postgres.xyz789:SecretP@ss@db.xyz789.supabase.co:5432/postgres
+      #   
+      #   Hostname only: db.xyz789.supabase.co
       #
       # ASIA PACIFIC - Southeast 1 (Singapore) [ap-southeast-1]
       # ────────────────────────────────────────────────────────────────────────
-      # Transaction pooler (Port 6543) - Recommended:
+      # Transaction pooler (Port 6543) - ⭐ RECOMMENDED for production:
       #   postgresql://postgres.def456:P@ssword123@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
       #   postgresql://postgres.def456:P@ssword123@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
+      #   
+      #   Hostname only: aws-0-ap-southeast-1.pooler.supabase.com
+      #   Hostname only: aws-1-ap-southeast-1.pooler.supabase.com
       # 
       # Session pooler (Port 5432):
       #   postgresql://postgres.def456:P@ssword123@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
       #   postgresql://postgres.def456:P@ssword123@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
+      #   
+      #   Hostname only: aws-0-ap-southeast-1.pooler.supabase.com
+      #   Hostname only: aws-1-ap-southeast-1.pooler.supabase.com
       # 
-      # Direct connection (no pooler):
+      # Direct connection (Port 5432) - NOT recommended for Render:
       #   postgresql://postgres.def456:P@ssword123@db.def456.supabase.co:5432/postgres
+      #   
+      #   Hostname only: db.def456.supabase.co
       #
       # Additional Supabase regions (use same pattern):
       # ────────────────────────────────────────────────────────────────────────
@@ -330,8 +611,9 @@ services:
       # - sa-east-1 (São Paulo)
       #
       # URL pattern for any region:
-      #   postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
-      #   postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-[REGION].pooler.supabase.com:6543/postgres
+      #   Transaction pooler: postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
+      #   Session pooler:     postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
+      #   Direct connection:  postgresql://postgres.[PROJECT_REF]:[PASSWORD]@db.[PROJECT_REF].supabase.co:5432/postgres
       #
       # Note: Replace [PROJECT_REF], [PASSWORD], and [REGION] with your actual values
       #
