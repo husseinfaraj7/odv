@@ -43,9 +43,17 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
 
         logger.info("Original DATABASE_URL detected: {}", maskPassword(databaseUrl));
         
-        SupabaseHostnameValidator.ValidationResult validationResult = SupabaseHostnameValidator.validate(databaseUrl);
-        if (!validationResult.isValid()) {
-            throw new IllegalStateException(validationResult.getMessage());
+        try {
+            String[] hostPort = extractHostAndPort(databaseUrl);
+            String hostname = hostPort[0];
+            
+            SupabaseHostnameValidator.HostnameValidationResult validationResult = SupabaseHostnameValidator.validate(hostname);
+            if (!validationResult.isValid()) {
+                throw new IllegalStateException(validationResult.getMessage());
+            }
+        } catch (Exception e) {
+            logger.error("Failed to extract hostname or validate DATABASE_URL: {}", e.getMessage());
+            throw new IllegalStateException("Invalid DATABASE_URL format: " + e.getMessage(), e);
         }
         
         DatabaseConnectivityValidator.validateDatabaseConnectivity(databaseUrl);
