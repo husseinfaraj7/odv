@@ -20,6 +20,9 @@ import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
 
 import javax.sql.DataSource;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -82,6 +85,14 @@ public class DatabaseConnectionRetryConfig {
                                 return dataSource;
                             } catch (SQLException | CannotGetJdbcConnectionException e) {
                                 String currentUrl = dataSource.getJdbcUrl();
+                                
+                                // Check for DNS resolution failure (UnknownHostException)
+                                if (containsUnknownHostException(e)) {
+                                    String hostname = extractHostnameFromUrl(currentUrl);
+                                    logDnsResolutionFailure(hostname, currentUrl, context.getRetryCount() + 1);
+                                    throw e;
+                                }
+                                
                                 boolean isPoolerError = isSupabasePoolerConnectionError(e, currentUrl);
                                 
                                 if (isPoolerError && !poolerFallbackAttempted) {
@@ -129,6 +140,75 @@ public class DatabaseConnectionRetryConfig {
                     }
                 }
                 return bean;
+            }
+            
+            private boolean containsUnknownHostException(Throwable throwable) {
+                Throwable current = throwable;
+                while (current != null) {
+                    if (current instanceof UnknownHostException) {
+                        return true;
+                    }
+                    current = current.getCause();
+                }
+                return false;
+            }
+            
+            private String extractHostnameFromUrl(String jdbcUrl) {
+                if (jdbcUrl == null) {
+                    return "unknown";
+                }
+                Pattern hostPattern = Pattern.compile("jdbc:postgresql://([^:/]+)");
+                Matcher matcher = hostPattern.matcher(jdbcUrl);
+                if (matcher.find()) {
+                    return matcher.group(1);
+                }
+                return "unknown";
+            }
+            
+            private void logDnsResolutionFailure(String hostname, String jdbcUrl, int attemptNumber) {
+                StringBuilder msg = new StringBuilder();
+                msg.append("\n");
+                msg.append("================================================================================\n");
+                msg.append("DNS RESOLUTION FAILURE - INVALID OR MALFORMED HOSTNAME\n");
+                msg.append("================================================================================\n");
+                msg.append("Attempt: ").append(attemptNumber).append("/").append(MAX_ATTEMPTS).append("\n\n");
+                msg.append("FAILURE TYPE: UnknownHostException\n");
+                msg.append("This indicates the hostname in your DATABASE_URL cannot be resolved to an IP address.\n");
+                msg.append("This is a DNS resolution failure, NOT a network connectivity issue.\n\n");
+                msg.append("CONTRAST WITH OTHER NETWORK ERRORS:\n");
+                msg.append("  • UnknownHostException (THIS ERROR): Invalid/malformed hostname - DNS cannot resolve it\n");
+                msg.append("  • ConnectException: Valid hostname but cannot connect (port closed, firewall, service down)\n");
+                msg.append("  • SocketTimeoutException: Valid hostname but server not responding in time\n\n");
+                msg.append("DETECTED HOSTNAME: ").append(hostname).append("\n");
+                msg.append("FULL DATABASE_URL: ").append(maskPassword(jdbcUrl)).append("\n\n");
+                msg.append("CORRECT SUPABASE HOSTNAME FORMATS:\n");
+                msg.append("  • Direct Connection:\n");
+                msg.append("      Format: db.<project-ref>.supabase.co\n");
+                msg.append("      Port: 5432\n");
+                msg.append("      Example: jdbc:postgresql://db.aws-0-us-east-1.pooler.supabase.co:5432/postgres\n\n");
+                msg.append("  • Pooler Connection (Transaction Mode):\n");
+                msg.append("      Format: <project-ref>.pooler.supabase.com\n");
+                msg.append("      Port: 6543\n");
+                msg.append("      Example: jdbc:postgresql://aws-0-us-east-1.pooler.supabase.com:6543/postgres\n\n");
+                msg.append("REMEDIATION STEPS:\n");
+                msg.append("  1. Verify DATABASE_URL environment variable contains a valid hostname\n");
+                msg.append("  2. Check for typos in the hostname (common mistakes):\n");
+                msg.append("      • Incorrect TLD: .supabase.com vs .supabase.co\n");
+                msg.append("      • Missing 'db.' prefix for direct connections\n");
+                msg.append("      • Extra/missing 'pooler' subdomain\n");
+                msg.append("      • Incorrect project reference ID\n");
+                msg.append("  3. Get correct connection string from Supabase dashboard:\n");
+                msg.append("      https://app.supabase.com/project/[your-project]/settings/database\n");
+                msg.append("  4. Ensure DATABASE_URL pattern matches your connection mode:\n");
+                msg.append("      Direct: jdbc:postgresql://db.<ref>.supabase.co:5432/<db>?user=<user>&password=<pass>\n");
+                msg.append("      Pooler: jdbc:postgresql://<ref>.pooler.supabase.com:6543/<db>?user=<user>&password=<pass>\n");
+                msg.append("  5. Update .env file or environment variable and restart the application\n\n");
+                msg.append("NOTE: If hostname looks correct, verify:\n");
+                msg.append("  • You have internet connectivity\n");
+                msg.append("  • Your DNS resolver is working (test: nslookup ").append(hostname).append(")\n");
+                msg.append("  • No DNS blocking/filtering at network level\n");
+                msg.append("================================================================================\n");
+                logger.error(msg.toString());
             }
             
             private boolean isSupabasePoolerConnectionError(Throwable throwable, String jdbcUrl) {
@@ -267,18 +347,40 @@ public class DatabaseConnectionRetryConfig {
             int attemptNumber = context.getRetryCount() + 1;
             String exceptionMessage = throwable.getMessage();
             
-            String diagnosticDetails = extractDiagnosticDetails(throwable, exceptionMessage);
-            
-            logger.warn("Database connection retry attempt {}/{} failed. Exception: {}. Diagnostic details: {}", 
-                attemptNumber, 
-                MAX_ATTEMPTS, 
-                exceptionMessage,
-                diagnosticDetails);
+            // Check for specific exception types for detailed logging
+            Throwable rootCause = getRootCause(throwable);
+            if (rootCause instanceof UnknownHostException) {
+                logger.error("Retry attempt {}/{}: DNS RESOLUTION FAILURE (UnknownHostException) - Invalid or malformed hostname. See detailed error above.", 
+                    attemptNumber, MAX_ATTEMPTS);
+            } else if (rootCause instanceof ConnectException) {
+                String databaseHost = extractDatabaseHost(throwable);
+                logger.warn("Retry attempt {}/{}: CONNECTION REFUSED (ConnectException) - Valid hostname '{}' but cannot establish connection. Port may be closed, firewall blocking, or service unavailable.", 
+                    attemptNumber, MAX_ATTEMPTS, databaseHost);
+            } else if (rootCause instanceof SocketTimeoutException) {
+                String databaseHost = extractDatabaseHost(throwable);
+                logger.warn("Retry attempt {}/{}: CONNECTION TIMEOUT (SocketTimeoutException) - Valid hostname '{}' but server not responding in time. Check network latency or server load.", 
+                    attemptNumber, MAX_ATTEMPTS, databaseHost);
+            } else {
+                String diagnosticDetails = extractDiagnosticDetails(throwable, exceptionMessage);
+                logger.warn("Database connection retry attempt {}/{} failed. Exception: {}. Diagnostic details: {}", 
+                    attemptNumber, 
+                    MAX_ATTEMPTS, 
+                    exceptionMessage,
+                    diagnosticDetails);
+            }
             
             if (attemptNumber < MAX_ATTEMPTS) {
                 long nextRetryDelay = calculateNextRetryDelay(attemptNumber);
                 logger.info("Retrying database connection in {} ms...", nextRetryDelay);
             }
+        }
+        
+        private Throwable getRootCause(Throwable throwable) {
+            Throwable current = throwable;
+            while (current.getCause() != null && current.getCause() != current) {
+                current = current.getCause();
+            }
+            return current;
         }
 
         private String extractDiagnosticDetails(Throwable throwable, String exceptionMessage) {

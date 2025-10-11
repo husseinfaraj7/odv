@@ -9,6 +9,9 @@ import org.springframework.core.env.StandardEnvironment;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.retry.support.RetryTemplate;
 
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.sql.Connection;
 import java.sql.SQLException;
 
