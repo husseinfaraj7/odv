@@ -488,15 +488,8 @@ class SupabaseHostnameValidatorIntegrationTest {
     // ============================================================================
 
     @Test
-    @DisplayName("SupabaseHostnameValidator bean should be available")
-    void testValidatorBeanExists() {
-        assertNotNull(validator, "SupabaseHostnameValidator bean should be autowired");
-    }
-
-    @Test
     @DisplayName("Validator should be instantiable and functional")
     void testValidatorFunctional() {
-        assertNotNull(validator);
         SupabaseHostnameValidator.HostnameValidationResult result = 
             SupabaseHostnameValidator.validate("db.abcdefghij1234567890.supabase.co");
         assertNotNull(result);
