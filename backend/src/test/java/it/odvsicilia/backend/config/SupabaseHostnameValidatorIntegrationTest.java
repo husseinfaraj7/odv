@@ -15,6 +15,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("SupabaseHostnameValidator Integration Tests")
 class SupabaseHostnameValidatorIntegrationTest {
 
+    @Autowired
+    private SupabaseHostnameValidator validator;
+
     // ============================================================================
     // MALFORMED HOSTNAME TESTS - Specific patterns from requirements
     // ============================================================================
