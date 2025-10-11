@@ -43,6 +43,11 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
 
         logger.info("Original DATABASE_URL detected: {}", maskPassword(databaseUrl));
         
+        SupabaseHostnameValidator.ValidationResult validationResult = SupabaseHostnameValidator.validate(databaseUrl);
+        if (!validationResult.isValid()) {
+            throw new IllegalStateException(validationResult.getMessage());
+        }
+        
         DatabaseConnectivityValidator.validateDatabaseConnectivity(databaseUrl);
 
         if (databaseUrl.startsWith("jdbc:")) {

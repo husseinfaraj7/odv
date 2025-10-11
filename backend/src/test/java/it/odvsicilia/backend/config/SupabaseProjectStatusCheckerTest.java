@@ -32,7 +32,7 @@ class SupabaseProjectStatusCheckerTest {
     @Test
     @DisplayName("Should validate Supabase pooler connection with correct format")
     void testValidSupabasePoolerConnection() {
-        String url = "postgresql://postgres.abcdefghij1234567890:myPass456@aws-1-eu-north-1.pooler.supabase.com:6543/postgres";
+        String url = "postgresql://postgres.abcdefghij1234567890:myPass456@aws-0-eu-north-1.pooler.supabase.com:6543/postgres";
         
         SupabaseProjectStatusChecker.ValidationResult result = checker.validate(url);
         
@@ -179,7 +179,7 @@ class SupabaseProjectStatusCheckerTest {
     @Test
     @DisplayName("Should detect placeholder project reference")
     void testPlaceholderProjectRef() {
-        String url = "postgresql://postgres.YOUR_PROJECT_REF:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres";
+        String url = "postgresql://postgres.YOUR_PROJECT_REF:pass@aws-0-eu-north-1.pooler.supabase.com:6543/postgres";
         
         SupabaseProjectStatusChecker.ValidationResult result = checker.validate(url);
         
@@ -200,7 +200,7 @@ class SupabaseProjectStatusCheckerTest {
     @Test
     @DisplayName("Should warn about port mismatch for pooler connection")
     void testPoolerConnectionWithDirectPort() {
-        String url = "postgresql://postgres.abcdefghij1234567890:pass@aws-1-eu-north-1.pooler.supabase.com:5432/postgres";
+        String url = "postgresql://postgres.abcdefghij1234567890:pass@aws-0-eu-north-1.pooler.supabase.com:5432/postgres";
         
         SupabaseProjectStatusChecker.ValidationResult result = checker.validate(url);
         
@@ -230,7 +230,7 @@ class SupabaseProjectStatusCheckerTest {
     @Test
     @DisplayName("Should handle pooler URL without explicit port")
     void testPoolerUrlWithoutPort() {
-        String url = "postgresql://postgres.abcdefghij1234567890:pass@aws-1-eu-north-1.pooler.supabase.com/postgres";
+        String url = "postgresql://postgres.abcdefghij1234567890:pass@aws-0-eu-north-1.pooler.supabase.com/postgres";
         
         SupabaseProjectStatusChecker.ValidationResult result = checker.validate(url);
         
@@ -250,7 +250,7 @@ class SupabaseProjectStatusCheckerTest {
     @Test
     @DisplayName("Should fail when pooler URL has no project ref in username")
     void testPoolerUrlMissingProjectRef() {
-        String url = "postgresql://postgres:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres";
+        String url = "postgresql://postgres:pass@aws-0-eu-north-1.pooler.supabase.com:6543/postgres";
         
         SupabaseProjectStatusChecker.ValidationResult result = checker.validate(url);
         
@@ -318,3 +318,4 @@ class SupabaseProjectStatusCheckerTest {
         assertEquals("error", failure.getMessage());
     }
 }
+

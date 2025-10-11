@@ -384,7 +384,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         ConfigurableEnvironment environment = new MockEnvironment();
         
         Map<String, Object> props = new HashMap<>();
-        props.put("DATABASE_URL", "postgres://postgres.pooleruser:poolerpass123@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require");
+        props.put("DATABASE_URL", "postgres://postgres.pooleruser:poolerpass123@aws-0-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require");
         environment.getPropertySources().addFirst(new MapPropertySource("test", props));
 
         DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
@@ -392,7 +392,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
 
         String jdbcUrl = environment.getProperty("spring.datasource.url");
         assertNotNull(jdbcUrl);
-        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres"));
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-0-eu-north-1.pooler.supabase.com:6543/postgres"));
         assertTrue(jdbcUrl.contains("user=postgres.pooleruser"));
         assertTrue(jdbcUrl.contains("password=poolerpass123"));
         assertTrue(jdbcUrl.contains("sslmode=require"));
@@ -404,7 +404,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         ConfigurableEnvironment environment = new MockEnvironment();
         
         Map<String, Object> props = new HashMap<>();
-        props.put("DATABASE_URL", "postgresql://postgres.myproject:securePass456@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require");
+        props.put("DATABASE_URL", "postgresql://postgres.myproject:securePass456@aws-0-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require");
         environment.getPropertySources().addFirst(new MapPropertySource("test", props));
 
         DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
@@ -412,7 +412,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
 
         String jdbcUrl = environment.getProperty("spring.datasource.url");
         assertNotNull(jdbcUrl);
-        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres"));
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-0-eu-north-1.pooler.supabase.com:6543/postgres"));
         assertTrue(jdbcUrl.contains("user=postgres.myproject"));
         assertTrue(jdbcUrl.contains("password=securePass456"));
         assertTrue(jdbcUrl.contains("sslmode=require"));
@@ -424,7 +424,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         ConfigurableEnvironment environment = new MockEnvironment();
         
         Map<String, Object> props = new HashMap<>();
-        props.put("DATABASE_URL", "postgres://postgres.proj123:p%40ssw%21rd%23special@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require");
+        props.put("DATABASE_URL", "postgres://postgres.proj123:p%40ssw%21rd%23special@aws-0-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require");
         environment.getPropertySources().addFirst(new MapPropertySource("test", props));
 
         DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
@@ -432,7 +432,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
 
         String jdbcUrl = environment.getProperty("spring.datasource.url");
         assertNotNull(jdbcUrl);
-        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres"));
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-0-eu-north-1.pooler.supabase.com:6543/postgres"));
         assertTrue(jdbcUrl.contains("user=postgres.proj123"));
         assertTrue(jdbcUrl.contains("password=p%40ssw%21rd%23special"));
         assertTrue(jdbcUrl.contains("sslmode=require"));
@@ -444,7 +444,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         ConfigurableEnvironment environment = new MockEnvironment();
         
         Map<String, Object> props = new HashMap<>();
-        props.put("DATABASE_URL", "postgresql://postgres.app:mypass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require&connectTimeout=30&ApplicationName=backend");
+        props.put("DATABASE_URL", "postgresql://postgres.app:mypass@aws-0-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require&connectTimeout=30&ApplicationName=backend");
         environment.getPropertySources().addFirst(new MapPropertySource("test", props));
 
         DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
@@ -452,7 +452,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
 
         String jdbcUrl = environment.getProperty("spring.datasource.url");
         assertNotNull(jdbcUrl);
-        assertTrue(jdbcUrl.contains("aws-1-eu-north-1.pooler.supabase.com:6543"));
+        assertTrue(jdbcUrl.contains("aws-0-eu-north-1.pooler.supabase.com:6543"));
         assertTrue(jdbcUrl.contains("sslmode=require"));
         assertTrue(jdbcUrl.contains("connectTimeout=30"));
         assertTrue(jdbcUrl.contains("ApplicationName=backend"));
@@ -463,7 +463,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
     void testSupabasePoolerUrlAlreadyInJdbcFormat() {
         ConfigurableEnvironment environment = new MockEnvironment();
         
-        String jdbcPoolerUrl = "jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres?user=postgres.proj&password=pass123&sslmode=require";
+        String jdbcPoolerUrl = "jdbc:postgresql://aws-0-eu-north-1.pooler.supabase.com:6543/postgres?user=postgres.proj&password=pass123&sslmode=require";
         Map<String, Object> props = new HashMap<>();
         props.put("DATABASE_URL", jdbcPoolerUrl);
         environment.getPropertySources().addFirst(new MapPropertySource("test", props));
@@ -481,7 +481,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         ConfigurableEnvironment environment = new MockEnvironment();
         
         Map<String, Object> props = new HashMap<>();
-        props.put("DATABASE_URL", "postgresql://postgres.YOUR_PROJECT_REF:p%40ss%23word@aws-1-eu-north-1.pooler.supabase.com:6543/postgres");
+        props.put("DATABASE_URL", "postgresql://postgres.YOUR_PROJECT_REF:p%40ss%23word@aws-0-eu-north-1.pooler.supabase.com:6543/postgres");
         environment.getPropertySources().addFirst(new MapPropertySource("test", props));
 
         DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
@@ -489,7 +489,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
 
         String jdbcUrl = environment.getProperty("spring.datasource.url");
         assertNotNull(jdbcUrl);
-        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres"));
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-0-eu-north-1.pooler.supabase.com:6543/postgres"));
         assertTrue(jdbcUrl.contains("user=postgres.YOUR_PROJECT_REF"));
         assertTrue(jdbcUrl.contains("password=p%2540ss%2523word"));
     }
@@ -500,7 +500,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         ConfigurableEnvironment environment = new MockEnvironment();
         
         Map<String, Object> props = new HashMap<>();
-        props.put("DATABASE_URL", "postgresql://postgres.YOUR_PROJECT_REF:p@ss#w0rd%special@aws-1-eu-north-1.pooler.supabase.com:6543/postgres");
+        props.put("DATABASE_URL", "postgresql://postgres.YOUR_PROJECT_REF:p@ss#w0rd%special@aws-0-eu-north-1.pooler.supabase.com:6543/postgres");
         environment.getPropertySources().addFirst(new MapPropertySource("test", props));
 
         DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
@@ -508,7 +508,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
 
         String jdbcUrl = environment.getProperty("spring.datasource.url");
         assertNotNull(jdbcUrl);
-        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres"));
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-0-eu-north-1.pooler.supabase.com:6543/postgres"));
         assertTrue(jdbcUrl.contains("user=postgres.YOUR_PROJECT_REF"));
         assertTrue(jdbcUrl.contains("password=p%40ss%23w0rd%25special"));
     }
@@ -519,7 +519,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         ConfigurableEnvironment environment = new MockEnvironment();
         
         Map<String, Object> props = new HashMap<>();
-        props.put("DATABASE_URL", "postgresql://postgres.YOUR_PROJECT_REF:example_password@aws-1-eu-north-1.pooler.supabase.com:6543/postgres");
+        props.put("DATABASE_URL", "postgresql://postgres.YOUR_PROJECT_REF:example_password@aws-0-eu-north-1.pooler.supabase.com:6543/postgres");
         environment.getPropertySources().addFirst(new MapPropertySource("test", props));
 
         DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
@@ -527,12 +527,32 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
 
         String jdbcUrl = environment.getProperty("spring.datasource.url");
         assertNotNull(jdbcUrl);
-        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-1-eu-north-1.pooler.supabase.com:6543/postgres"));
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://aws-0-eu-north-1.pooler.supabase.com:6543/postgres"));
         assertTrue(jdbcUrl.contains("user=postgres.YOUR_PROJECT_REF"));
         assertTrue(jdbcUrl.contains("password=example_password"));
+    }
+
+    @Test
+    @DisplayName("Should reject malformed Supabase hostname mixing direct and pooler formats")
+    void testMalformedSupabaseHostnameMixingFormats() {
+        ConfigurableEnvironment environment = new MockEnvironment();
+        
+        Map<String, Object> props = new HashMap<>();
+        props.put("DATABASE_URL", "postgres://postgres.project:pass@db.aws-0-eu-north-1.pooler.supabase.com:6543/postgres");
+        environment.getPropertySources().addFirst(new MapPropertySource("test", props));
+
+        DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
+        
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+            processor.postProcessEnvironment(environment, new SpringApplication());
+        });
+        
+        assertTrue(exception.getMessage().contains("Malformed Supabase hostname"));
+        assertTrue(exception.getMessage().contains("db.aws-0-eu-north-1.pooler.supabase.com"));
     }
 
     @SpringBootApplication
     static class TestConfiguration {
     }
 }
+
