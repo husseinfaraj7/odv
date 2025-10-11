@@ -2,12 +2,10 @@ package it.odvsicilia.backend.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@Component
 public class SupabaseHostnameValidator {
 
     private static final Logger logger = LoggerFactory.getLogger(SupabaseHostnameValidator.class);
