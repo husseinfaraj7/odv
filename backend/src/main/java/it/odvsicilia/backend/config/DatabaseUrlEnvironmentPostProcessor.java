@@ -248,6 +248,83 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         }
     }
 
+    private void validateHostnameWithDnsResolution(String hostname) {
+        logger.info("=== Database Hostname Validation ===");
+        logger.info("Validating hostname: {}", hostname);
+        
+        String hostnamePattern = detectHostnamePattern(hostname);
+        logger.info("Detected hostname pattern: {}", hostnamePattern);
+        
+        if ("MALFORMED".equals(hostnamePattern)) {
+            logger.error("Hostname appears to be malformed: {}", hostname);
+            logger.error("The hostname '{}' mixes Supabase direct and pooler connection formats incorrectly", hostname);
+        }
+        
+        try {
+            InetAddress[] addresses = InetAddress.getAllByName(hostname);
+            
+            if (addresses.length > 0) {
+                logger.info("DNS resolution successful for hostname '{}'. Resolved to {} IP address(es)", hostname, addresses.length);
+                for (InetAddress address : addresses) {
+                    logger.info("  - {}", address.getHostAddress());
+                }
+            } else {
+                logger.warn("DNS resolution returned no IP addresses for hostname: {}", hostname);
+            }
+            
+            logger.info("=== Hostname Validation Complete ===");
+        } catch (UnknownHostException e) {
+            logger.error("=== DNS RESOLUTION FAILED ===");
+            logger.error("Failed to resolve hostname: {}", hostname);
+            logger.error("Reason: {}", e.getMessage());
+            logger.error("");
+            logger.error("Examples of correct Supabase hostname formats:");
+            logger.error("  1. Direct connection pattern: db.PROJECT_REF.supabase.co (port 5432)");
+            logger.error("     Example: db.abcdefghijklmnop.supabase.co");
+            logger.error("");
+            logger.error("  2. Transaction pooler pattern: aws-0-REGION.pooler.supabase.com (port 6543)");
+            logger.error("     Example: aws-0-us-east-1.pooler.supabase.com");
+            logger.error("");
+            logger.error("Your hostname that failed to resolve: {}", hostname);
+            logger.error("");
+            logger.error("Common mistakes:");
+            logger.error("  - Mixing formats (e.g., db.aws-0-region.pooler.supabase.com) - INCORRECT");
+            logger.error("  - Wrong domain extension (.com vs .co) - check your Supabase project settings");
+            logger.error("  - Incorrect project reference - verify in your Supabase dashboard");
+            logger.error("=== Application startup will fail due to invalid hostname ===");
+            
+            throw new IllegalStateException("DNS resolution failed for database hostname: " + hostname + 
+                ". The hostname cannot be resolved to an IP address. " +
+                "Please verify your DATABASE_URL contains a valid Supabase hostname. " +
+                "See logs above for examples of correct hostname formats.", e);
+        } catch (Exception e) {
+            logger.error("Unexpected error during DNS resolution validation for hostname: {}. Error: {}", hostname, e.getMessage());
+            throw new IllegalStateException("DNS resolution validation failed for database hostname: " + hostname, e);
+        }
+    }
+
+    private String detectHostnamePattern(String hostname) {
+        if (hostname.startsWith("db.aws-") || hostname.matches("^db\\.[^.]*aws[^.]*\\..*")) {
+            return "MALFORMED (incorrectly mixes direct 'db.' prefix with pooler 'aws-' format)";
+        }
+        
+        Matcher directMatcher = SUPABASE_DIRECT_PATTERN.matcher(hostname);
+        if (directMatcher.matches()) {
+            return "Supabase direct connection (db.PROJECT_REF.supabase.co)";
+        }
+        
+        Matcher poolerMatcher = SUPABASE_POOLER_PATTERN.matcher(hostname);
+        if (poolerMatcher.matches()) {
+            return "Supabase transaction pooler (aws-0-REGION.pooler.supabase.com)";
+        }
+        
+        if (hostname.contains("supabase")) {
+            return "MALFORMED (contains 'supabase' but doesn't match expected patterns)";
+        }
+        
+        return "Custom or non-Supabase hostname";
+    }
+
     private void performTcpConnectivityTest(String hostname, int port) {
         logger.info("Attempting TCP socket connection to {}:{}", hostname, port);
         
@@ -408,6 +485,8 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         if (host == null || host.trim().isEmpty()) {
             throw new IllegalArgumentException("Invalid DATABASE_URL: missing host");
         }
+        
+        validateHostnameWithDnsResolution(host);
         
         StringBuilder jdbcUrl = new StringBuilder();
         jdbcUrl.append("jdbc:postgresql://")

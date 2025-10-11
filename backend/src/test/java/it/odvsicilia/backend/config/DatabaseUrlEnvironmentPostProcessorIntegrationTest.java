@@ -58,7 +58,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         ConfigurableEnvironment environment = new MockEnvironment();
         
         Map<String, Object> props = new HashMap<>();
-        props.put("DATABASE_URL", "postgresql://myuser:mypass@db.example.com:5433/proddb");
+        props.put("DATABASE_URL", "postgresql://myuser:mypass@localhost:5432/proddb");
         environment.getPropertySources().addFirst(new MapPropertySource("test", props));
 
         DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
@@ -66,7 +66,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
 
         String jdbcUrl = environment.getProperty("spring.datasource.url");
         assertNotNull(jdbcUrl);
-        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://db.example.com:5433/proddb"));
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://localhost:5432/proddb"));
         assertTrue(jdbcUrl.contains("user=myuser"));
         assertTrue(jdbcUrl.contains("password=mypass"));
     }
@@ -327,7 +327,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
         ConfigurableEnvironment environment = new MockEnvironment();
         
         Map<String, Object> props = new HashMap<>();
-        props.put("DATABASE_URL", "postgresql://postgres.abc123xyz:complex_Pass!@db.example.supabase.co:5432/postgres?sslmode=require");
+        props.put("DATABASE_URL", "postgresql://postgres.abc123xyz:complex_Pass!@localhost:5432/postgres?sslmode=require");
         environment.getPropertySources().addFirst(new MapPropertySource("test", props));
 
         DatabaseUrlEnvironmentPostProcessor processor = new DatabaseUrlEnvironmentPostProcessor();
@@ -335,7 +335,7 @@ class DatabaseUrlEnvironmentPostProcessorIntegrationTest {
 
         String jdbcUrl = environment.getProperty("spring.datasource.url");
         assertNotNull(jdbcUrl);
-        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://db.example.supabase.co:5432/postgres"));
+        assertTrue(jdbcUrl.startsWith("jdbc:postgresql://localhost:5432/postgres"));
         assertTrue(jdbcUrl.contains("user=postgres.abc123xyz"));
         assertTrue(jdbcUrl.contains("sslmode=require"));
     }
