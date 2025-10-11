@@ -1,0 +1,616 @@
+services:
+  # Backend Service - Java Spring Boot
+  - type: web
+    name: faraj-project-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerRegistryCredential: 
+      registry: https://index.docker.io/v1/
+      username:
+        fromEnvVar: DOCKER_HUB_USERNAME
+      password:
+        fromEnvVar: DOCKER_HUB_PASSWORD
+    region: oregon
+    healthCheckPath: /actuator/health
+    # Using main Dockerfile with updated OpenJDK 17 base images (openjdk:17-jdk-slim and openjdk:17-jre-slim)
+    envVars:
+      # Spring Boot Configuration
+      - key: SPRING_PROFILES_ACTIVE
+        value: "prod"
+      - key: PORT
+        value: "8080"
+      
+      # ============================================================================
+      # DATABASE CONFIGURATION - SUPABASE CONNECTION POOLER
+      # ============================================================================
+      # 
+      # IMPORTANT: Always use Supabase Connection Pooler URLs for production deployments.
+      # Connection pooler URLs provide better performance, scalability, and reliability
+      # compared to direct database connections.
+      #
+      # ============================================================================
+      # SUPABASE CONNECTION MODE
+      # ============================================================================
+      # 
+      # SUPABASE_CONNECTION_MODE: Determines how the application connects to Supabase
+      # 
+      # Available modes:
+      # 
+      # 1. "pooler" (RECOMMENDED) - Use Supabase Connection Pooler
+      #    - Best for: Production environments, serverless deployments (Render, Vercel, etc.)
+      #    - Benefits: Handles connection pooling, prevents connection exhaustion
+      #    - URL format: aws-0-[region].pooler.supabase.com or aws-1-[region].pooler.supabase.com
+      #    - Ports: 6543 (transaction mode), 5432 (session mode)
+      #    - When to use: Always use for production unless you have specific requirements
+      #
+      # 2. "direct" - Direct database connection (bypass pooler)
+      #    - Best for: Long-running connections, specific PostgreSQL features
+      #    - URL format: db.[project-ref].supabase.co:5432
+      #    - When to use: When you need LISTEN/NOTIFY, advisory locks, or custom session settings
+      #    - Warning: May cause connection exhaustion in serverless environments
+      #
+      # 3. "auto" - Automatic detection based on DATABASE_URL
+      #    - Detects pooler URLs (*.pooler.supabase.com) vs direct URLs (db.*.supabase.co)
+      #    - Useful if you frequently switch between environments
+      #    - Falls back to "pooler" if detection fails
+      #
+      # Example configuration:
+      # SUPABASE_CONNECTION_MODE: "pooler"
+      #
+      # ============================================================================
+      # CONNECTION POOLER URL FORMATS
+      # ============================================================================
+      #
+      # TRANSACTION POOLER (Port 6543) - RECOMMENDED for most applications
+      # ────────────────────────────────────────────────────────────────────────
+      # Use case: Web applications with many short-lived connections
+      # Benefits: 
+      #   - Optimal for serverless/stateless environments like Render
+      #   - Handles connection pooling at transaction level
+      #   - Prevents connection exhaustion
+      #   - Best performance for typical CRUD operations
+      # 
+      # Format: postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
+      #         postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-[REGION].pooler.supabase.com:6543/postgres
+      # 
+      # Regional examples:
+      #   EU North 1:      postgresql://postgres.abcd1234:[PASSWORD]@aws-0-eu-north-1.pooler.supabase.com:6543/postgres
+      #   EU North 1 (v2): postgresql://postgres.abcd1234:[PASSWORD]@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   US East 1:       postgresql://postgres.abcd1234:[PASSWORD]@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+      #   US East 1 (v2):  postgresql://postgres.abcd1234:[PASSWORD]@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+      #   AP Southeast 1:  postgresql://postgres.abcd1234:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+      #   AP Southeast 1 (v2): postgresql://postgres.abcd1234:[PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
+      #
+      # SESSION POOLER (Port 5432) - Use for specific PostgreSQL features
+      # ────────────────────────────────────────────────────────────────────────
+      # Use case: Long-running connections, prepared statements, LISTEN/NOTIFY
+      # Benefits:
+      #   - Maintains session-level connection state
+      #   - Required for certain PostgreSQL features
+      #   - Supports prepared statements and custom session settings
+      # 
+      # Format: postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
+      #         postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-[REGION].pooler.supabase.com:5432/postgres
+      # 
+      # Regional examples:
+      #   EU North 1:      postgresql://postgres.abcd1234:[PASSWORD]@aws-0-eu-north-1.pooler.supabase.com:5432/postgres
+      #   EU North 1 (v2): postgresql://postgres.abcd1234:[PASSWORD]@aws-1-eu-north-1.pooler.supabase.com:5432/postgres
+      #   US East 1:       postgresql://postgres.abcd1234:[PASSWORD]@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+      #   US East 1 (v2):  postgresql://postgres.abcd1234:[PASSWORD]@aws-1-us-east-1.pooler.supabase.com:5432/postgres
+      #   AP Southeast 1:  postgresql://postgres.abcd1234:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+      #   AP Southeast 1 (v2): postgresql://postgres.abcd1234:[PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
+      #
+      # DIRECT CONNECTION (Port 5432) - Use only when pooler is not suitable
+      # ────────────────────────────────────────────────────────────────────────
+      # Use case: Advisory locks, custom connection settings, background workers
+      # Warning: Can cause connection exhaustion in serverless environments
+      # 
+      # Format: postgresql://postgres.[PROJECT_REF]:[PASSWORD]@db.[PROJECT_REF].supabase.co:5432/postgres
+      # 
+      # Regional examples (direct connections are region-agnostic):
+      #   Direct:          postgresql://postgres.abcd1234:[PASSWORD]@db.abcd1234.supabase.co:5432/postgres
+      #
+      # Note: The pooler URL prefix (aws-0 vs aws-1) indicates the pooler version.
+      #       Use the URL provided in your Supabase dashboard under Settings → Database.
+      #
+      # ============================================================================
+      # SUPABASE CONNECTION POOLER VERIFICATION CHECKLIST
+      # ============================================================================
+      #
+      # Before deploying, verify the connection pooler is properly configured:
+      # 
+      # ☐ 1. Enable Connection Pooler in Supabase Dashboard
+      #      - Navigate to: Dashboard → Your Project → Settings → Database
+      #      - Scroll to: "Connection Pooling" section
+      #      - Click: "Enable Pooler" button if not already enabled
+      #      - Verify: Green checkmark or "Enabled" status appears
+      #
+      # ☐ 2. Copy the correct pooler URL
+      #      - In the same section, find "Connection string" dropdown
+      #      - Select: "Transaction" mode (port 6543) or "Session" mode (port 5432)
+      #      - Click: "Copy" button next to the connection string
+      #      - URL should contain: *.pooler.supabase.com (NOT db.*.supabase.co)
+      #
+      # ☐ 3. Verify your Supabase project is active
+      #      - Check project status in Supabase dashboard (top of page)
+      #      - Status should be: "Active" or "Healthy" (green indicator)
+      #      - If paused: Click "Restore" or "Resume" to reactivate
+      #      - Paused projects cannot accept connections (causes "Connection refused")
+      #
+      # ☐ 4. Check billing and usage limits
+      #      - Navigate to: Dashboard → Organization → Billing
+      #      - Verify: Plan is active and not exceeded
+      #      - Free tier limits: Check database size, API requests, bandwidth
+      #      - If over limits: Upgrade plan or reduce usage
+      #      - Billing issues can cause automatic project pause
+      #
+      # ☐ 5. Confirm database password
+      #      - Password shown in connection string is masked (••••••)
+      #      - Use the password you set during project creation
+      #      - To reset: Settings → Database → "Reset Database Password"
+      #      - After reset: Update DATABASE_URL and DATABASE_PASSWORD immediately
+      #
+      # ☐ 6. Test connection locally before deploying
+      #      - Set DATABASE_URL in local .env file
+      #      - Run: .\mvn.ps1 spring-boot:run
+      #      - Check logs for: "HikariPool-1 - Start completed"
+      #      - If fails locally, fix before deploying to Render
+      #
+      # ☐ 7. Verify region matches
+      #      - Check your project region: Settings → General → "Region"
+      #      - Pooler URL must match: aws-0-[your-region].pooler.supabase.com
+      #      - Common regions: eu-north-1, us-east-1, us-west-1, ap-southeast-1
+      #
+      # ============================================================================
+      # TROUBLESHOOTING CONNECTION REFUSED ERRORS
+      # ============================================================================
+      #
+      # Error: "Connection refused" or "Connection timeout"
+      # ────────────────────────────────────────────────────────────────────────
+      #
+      # Common causes and solutions:
+      #
+      # 1. ❌ Supabase project is PAUSED
+      #    Symptoms:
+      #    - Connection refused errors in logs
+      #    - Dashboard shows "Paused" status
+      #    - Project inactive for 7+ days (free tier)
+      #    
+      #    How to check:
+      #    - Go to: Supabase Dashboard → Your Project
+      #    - Look for: Yellow/red banner at top saying "Project Paused"
+      #    - Or check: Settings → General → "Project Status"
+      #    
+      #    Solution:
+      #    - Click "Restore Project" button in dashboard
+      #    - Wait 2-3 minutes for project to resume
+      #    - Verify status changes to "Active" (green indicator)
+      #    - Redeploy your Render service or restart it
+      #    - Free tier: Projects auto-pause after 7 days of inactivity
+      #
+      # 2. ❌ Billing issues or exceeded quotas
+      #    Symptoms:
+      #    - Connection refused after project was working
+      #    - Dashboard shows billing warning
+      #    - Over free tier limits (database size, bandwidth, API requests)
+      #    
+      #    How to check:
+      #    - Go to: Dashboard → Organization → Billing
+      #    - Check: "Usage" section for exceeded limits
+      #    - Look for: Red warnings or "Action Required" messages
+      #    
+      #    Solution:
+      #    - Review usage: Database → Usage tab
+      #    - Upgrade plan: Billing → "Upgrade to Pro"
+      #    - Or reduce usage: Delete unused data, optimize queries
+      #    - Update payment method if card declined
+      #
+      # 3. ❌ Connection pooler not enabled
+      #    Symptoms:
+      #    - "Connection refused" on pooler URL (*.pooler.supabase.com)
+      #    - Works with direct URL (db.*.supabase.co) but not pooler
+      #    
+      #    How to check:
+      #    - Go to: Settings → Database → "Connection Pooling"
+      #    - Look for: "Enable Pooler" button (if visible, it's disabled)
+      #    - Or check: Status indicator shows "Disabled"
+      #    
+      #    Solution:
+      #    - Click "Enable Pooler" button
+      #    - Wait 1-2 minutes for pooler to initialize
+      #    - Verify: Status shows "Enabled" with green checkmark
+      #    - Update DATABASE_URL with the pooler connection string
+      #
+      # 4. ❌ Wrong region in pooler URL
+      #    Symptoms:
+      #    - Connection timeout (not immediate refusal)
+      #    - Error message mentions wrong host
+      #    
+      #    How to check:
+      #    - Settings → General → "Region" (e.g., "Europe North (Stockholm)")
+      #    - Compare with DATABASE_URL region part
+      #    - Example mismatch: Project in eu-north-1, URL has us-east-1
+      #    
+      #    Solution:
+      #    - Copy correct URL from: Settings → Database → Connection String
+      #    - Ensure URL contains correct region: aws-0-[YOUR-REGION].pooler.supabase.com
+      #    - Update DATABASE_URL environment variable
+      #
+      # 5. ❌ Wrong port for connection mode
+      #    Symptoms:
+      #    - Connection established but queries fail
+      #    - Unexpected PostgreSQL errors
+      #    
+      #    How to check:
+      #    - Transaction mode should use port 6543
+      #    - Session mode should use port 5432
+      #    - Check your DATABASE_URL port number
+      #    
+      #    Solution:
+      #    - For most apps: Use port 6543 (transaction pooler)
+      #    - For special features: Use port 5432 (session pooler)
+      #    - Update DATABASE_URL with correct port
+      #
+      # 6. ❌ Network/firewall restrictions
+      #    Symptoms:
+      #    - Works locally but fails on Render
+      #    - Connection timeout (not refused)
+      #    
+      #    How to check:
+      #    - Settings → Database → "Connection Limits"
+      #    - Check if IP whitelist is enabled
+      #    - Verify Render's IP ranges are allowed
+      #    
+      #    Solution:
+      #    - Disable IP whitelist (recommended for Render)
+      #    - Or add Render's IP ranges to allowlist
+      #    - Supabase documentation: https://supabase.com/docs/guides/platform/network-restrictions
+      #
+      # Additional debugging steps:
+      # 
+      # - Check Supabase status page: https://status.supabase.com
+      # - Test with psql: psql "your-database-url-here" -c "SELECT 1;"
+      # - Review Render logs: Look for specific error messages
+      # - Check Supabase logs: Dashboard → Logs → Query logs for connection attempts
+      #
+      # ============================================================================
+      # REGIONAL DATABASE_URL EXAMPLES
+      # ============================================================================
+      #
+      # Choose the URL format based on your Supabase project region.
+      # Find your region: Supabase Dashboard → Settings → General → "Region"
+      #
+      # EUROPE - North 1 (Stockholm) [eu-north-1]
+      # ────────────────────────────────────────────────────────────────────────
+      # Transaction pooler (Port 6543) - Recommended:
+      #   postgresql://postgres.abcd1234:MyP@ssw0rd@aws-0-eu-north-1.pooler.supabase.com:6543/postgres
+      #   postgresql://postgres.abcd1234:MyP@ssw0rd@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      # 
+      # Session pooler (Port 5432):
+      #   postgresql://postgres.abcd1234:MyP@ssw0rd@aws-0-eu-north-1.pooler.supabase.com:5432/postgres
+      #   postgresql://postgres.abcd1234:MyP@ssw0rd@aws-1-eu-north-1.pooler.supabase.com:5432/postgres
+      # 
+      # Direct connection (no pooler):
+      #   postgresql://postgres.abcd1234:MyP@ssw0rd@db.abcd1234.supabase.co:5432/postgres
+      #
+      # UNITED STATES - East 1 (N. Virginia) [us-east-1]
+      # ────────────────────────────────────────────────────────────────────────
+      # Transaction pooler (Port 6543) - Recommended:
+      #   postgresql://postgres.xyz789:SecretP@ss@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+      #   postgresql://postgres.xyz789:SecretP@ss@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+      # 
+      # Session pooler (Port 5432):
+      #   postgresql://postgres.xyz789:SecretP@ss@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+      #   postgresql://postgres.xyz789:SecretP@ss@aws-1-us-east-1.pooler.supabase.com:5432/postgres
+      # 
+      # Direct connection (no pooler):
+      #   postgresql://postgres.xyz789:SecretP@ss@db.xyz789.supabase.co:5432/postgres
+      #
+      # ASIA PACIFIC - Southeast 1 (Singapore) [ap-southeast-1]
+      # ────────────────────────────────────────────────────────────────────────
+      # Transaction pooler (Port 6543) - Recommended:
+      #   postgresql://postgres.def456:P@ssword123@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+      #   postgresql://postgres.def456:P@ssword123@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
+      # 
+      # Session pooler (Port 5432):
+      #   postgresql://postgres.def456:P@ssword123@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+      #   postgresql://postgres.def456:P@ssword123@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
+      # 
+      # Direct connection (no pooler):
+      #   postgresql://postgres.def456:P@ssword123@db.def456.supabase.co:5432/postgres
+      #
+      # Additional Supabase regions (use same pattern):
+      # ────────────────────────────────────────────────────────────────────────
+      # - us-west-1 (N. California)
+      # - eu-central-1 (Frankfurt)
+      # - eu-west-1 (Ireland)
+      # - eu-west-2 (London)
+      # - ap-northeast-1 (Tokyo)
+      # - ap-south-1 (Mumbai)
+      # - sa-east-1 (São Paulo)
+      #
+      # URL pattern for any region:
+      #   postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
+      #   postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-1-[REGION].pooler.supabase.com:6543/postgres
+      #
+      # Note: Replace [PROJECT_REF], [PASSWORD], and [REGION] with your actual values
+      #
+      # ============================================================================
+      # URL ENCODING for Special Characters (CRITICAL)
+      # ============================================================================
+      # 
+      # When embedding passwords in the connection URL, you MUST URL-encode special characters:
+      #   @ → %40    # → %23    : → %3A    / → %2F    ? → %3F    & → %26
+      #   = → %3D    + → %2B    $ → %24    ! → %21    * → %2A    ( → %28    ) → %29
+      #
+      # Example with special characters:
+      #   Raw password: MyP@ss#123!
+      #   URL-encoded:  MyP%40ss%23123%21
+      #   Full URL:     postgresql://postgres.abc123:MyP%40ss%23123%21@aws-0-us-west-1.pooler.supabase.com:6543/postgres
+      #
+      # ============================================================================
+      # COMMON MISTAKES TO AVOID
+      # ============================================================================
+      # 
+      # ❌ Using direct database URL: db.YOUR_PROJECT_REF.supabase.co
+      #    ✅ Use pooler URL instead: aws-0-eu-north-1.pooler.supabase.com
+      #
+      # ❌ Wrong port for transaction mode: 5432 when you need 6543
+      #    ✅ Use 6543 for transaction pooling (recommended for web apps)
+      #
+      # ❌ Forgetting URL encoding: MyP@ss#123 in connection URL
+      #    ✅ URL-encode the password: MyP%40ss%23123
+      #
+      # ❌ Using JDBC prefix: jdbc:postgresql://aws-0-us-west-1.pooler.supabase.com
+      #    ✅ Use postgres:// or postgresql:// prefix (app converts to JDBC automatically)
+      #
+      # ❌ Connection pooling not enabled in Supabase settings
+      #    ✅ Go to Supabase Dashboard → Project Settings → Database → Enable Pooler
+      #
+      # ❌ Using database name other than "postgres": /my_database
+      #    ✅ Use /postgres (default Supabase database name)
+      #
+      # ❌ Inconsistent username format: postgres_user
+      #    ✅ Use format: postgres.[PROJECT_REF] (e.g., postgres.abcdefghijklmnop)
+      #
+      # ❌ Wrong region in pooler URL (project is eu-north-1, URL says us-east-1)
+      #    ✅ Always check your project region and use matching pooler URL
+      #
+      # ❌ Project paused due to inactivity (free tier auto-pauses after 7 days)
+      #    ✅ Resume project in Supabase dashboard before deploying
+      #
+      # ============================================================================
+      # VALIDATION EXAMPLES
+      # ============================================================================
+      # 
+      # To verify your DATABASE_URL is correctly formatted, run these checks:
+      #
+      # 1. Test connection locally (PowerShell):
+      #    $env:DATABASE_URL="postgresql://postgres.abc123:pass@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+      #    .\mvn.ps1 spring-boot:run
+      #    # Look for: "HikariPool-1 - Start completed"
+      #
+      # 2. Verify URL format with regex (PowerShell):
+      #    $url = "postgresql://postgres.abc123:pass@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+      #    if ($url -match '^postgresql://postgres\.[a-z0-9]+:.+@aws-[01]-[a-z0-9-]+\.pooler\.supabase\.com:(6543|5432)/postgres$') {
+      #        Write-Host "✅ URL format is correct"
+      #    } else {
+      #        Write-Host "❌ URL format is incorrect"
+      #    }
+      #
+      # 3. Test with psql (if PostgreSQL client installed):
+      #    psql "postgresql://postgres.abc123:pass@aws-0-us-west-1.pooler.supabase.com:6543/postgres" -c "SELECT version();"
+      #    # Should return PostgreSQL version info
+      #
+      # 4. Check URL encoding (PowerShell):
+      #    # Correct: No raw special characters in password section
+      #    if ($url -match '@[^@]*@') {
+      #        Write-Host "❌ Password contains unencoded @ character"
+      #    }
+      #
+      # 5. Verify in Render logs after deployment:
+      #    # Success indicators:
+      #    #   - "HikariPool-1 - Starting..."
+      #    #   - "HikariPool-1 - Start completed"
+      #    #   - "Started BackendApplication in X.XXX seconds"
+      #    # Failure indicators:
+      #    #   - "Connection to localhost:5432 refused" → DATABASE_URL not set
+      #    #   - "password authentication failed" → Wrong password or encoding
+      #    #   - "Connection timeout" → Wrong host/port or pooler not enabled
+      #    #   - "Connection refused" → Project paused, billing issues, or pooler disabled
+      #
+      # ============================================================================
+      
+      # DATABASE_URL: Full PostgreSQL connection string using Supabase Connection Pooler
+      # REQUIRED FORMAT: postgresql://postgres.[PROJECT_REF]:[YOUR-PASSWORD]@aws-1-[REGION].pooler.supabase.com:[PORT]/postgres
+      # 
+      # ============================================================================
+      # ⚠️ CRITICAL - PASSWORD ENCODING WARNING ⚠️
+      # ============================================================================
+      # 
+      # PROVIDE PASSWORDS IN RAW, UNENCODED FORM ONLY!
+      # 
+      # The DatabaseUrlEnvironmentPostProcessor automatically handles URL encoding
+      # of special characters in passwords. DO NOT manually URL-encode passwords
+      # as this will cause DOUBLE-ENCODING and result in authentication failures
+      # with the Supabase pooler connection.
+      #
+      # ❌ WRONG - Manually encoded password:
+      #   Password: p@ssw0rd!
+      #   DON'T USE: postgresql://postgres.abc:p%40ssw0rd%21@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   This causes double-encoding: p%40ssw0rd%21 → p%2540ssw0rd%2521 (FAILS!)
+      #
+      # ✅ CORRECT - Raw password (automatic encoding):
+      #   Password: p@ssw0rd!
+      #   USE THIS: postgresql://postgres.abc:p@ssw0rd!@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   The app automatically converts to: p%40ssw0rd%21 (WORKS!)
+      #
+      # ============================================================================
+      # PASSWORD EXAMPLES:
+      # ============================================================================
+      #
+      # Example 1 - Password with special characters:
+      #   Raw password:     p@ssw0rd!
+      #   What you enter:   postgresql://postgres.myproject:p@ssw0rd!@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   Auto-encoded to:  postgresql://postgres.myproject:p%40ssw0rd%21@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #
+      # Example 2 - Password without special characters:
+      #   Raw password:     14863Faraj123
+      #   What you enter:   postgresql://postgres.myproject:14863Faraj123@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   Auto-encoded to:  postgresql://postgres.myproject:14863Faraj123@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   (No encoding needed, stays the same)
+      #
+      # Example 3 - Complex password:
+      #   Raw password:     MyP@ss#123!&=$
+      #   What you enter:   postgresql://postgres.myproject:MyP@ss#123!&=$@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   Auto-encoded to:  postgresql://postgres.myproject:MyP%40ss%23123%21%26%3D%24@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #
+      # ============================================================================
+      # URL COMPONENT BREAKDOWN:
+      # ============================================================================
+      #
+      # Where:
+      #   - [PROJECT_REF]: Your 16-character Supabase project reference (from dashboard)
+      #   - [YOUR-PASSWORD]: Your actual password in RAW form (automatic encoding will be applied)
+      #   - [REGION]: AWS region (e.g., eu-north-1, us-west-1, us-east-1, eu-central-1, ap-southeast-1)
+      #   - [PORT]: 6543 for transaction mode (recommended) OR 5432 for session mode
+      #
+      # CURRENT CONFIGURATION:
+      # - Using Supabase transaction pooler for eu-north-1 region (aws-1-eu-north-1.pooler.supabase.com)
+      # - Port 6543: Transaction mode pooling - optimized for serverless environments like Render
+      # - Transaction pooler handles connection pooling at the transaction level, ideal for web apps with many short-lived connections
+      # - This pooler URL differs from direct database connections (db.YOUR_PROJECT_REF.supabase.co) and is specifically optimized for Render's stateless container architecture
+      #
+      # TO USE: Replace [YOUR-PASSWORD] with your actual Supabase database password IN RAW FORM (keep all other parts of the URL intact)
+      - key: DATABASE_URL
+        value: "postgresql://postgres.YOUR_PROJECT_REF:[YOUR-PASSWORD]@aws-1-eu-north-1.pooler.supabase.com:6543/postgres"
+      
+      # DATABASE_USER: PostgreSQL username for Supabase
+      # REQUIRED FORMAT: postgres.[PROJECT_REF]
+      # Example: postgres.abcdefghijklmnop
+      # Note: Must match the username portion of your DATABASE_URL
+      # CURRENT: Using postgres.YOUR_PROJECT_REF for eu-north-1 Supabase project
+      - key: DATABASE_USER
+        value: "postgres.YOUR_PROJECT_REF"
+      
+      # DATABASE_PASSWORD: PostgreSQL password (RAW, UNENCODED FORM ONLY)
+      # ⚠️ WARNING: Provide your password in its original, raw form.
+      # DO NOT manually URL-encode special characters.
+      # 
+      # Examples:
+      #   ✅ CORRECT:   p@ssw0rd!          (raw password)
+      #   ❌ WRONG:     p%40ssw0rd%21     (manually encoded - causes double-encoding!)
+      #   ✅ CORRECT:   14863Faraj123      (raw password)
+      #   ✅ CORRECT:   MyP@ss#123!&=$     (raw password with special chars)
+      #   ❌ WRONG:     MyP%40ss%23123%21%26%3D%24 (manually encoded - FAILS!)
+      #
+      # This is your original password from Supabase project settings.
+      # The DatabaseUrlEnvironmentPostProcessor handles encoding automatically.
+      - key: DATABASE_PASSWORD
+        value: "YOUR_DATABASE_PASSWORD"
+      - key: DDL_AUTO
+        value: "validate"
+      
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        value: https://YOUR_PROJECT_REF.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: true
+      - key: SUPABASE_ROLE_KEY
+        sync: true
+      
+      # Email Configuration
+      - key: ADMIN_EMAIL
+        sync: true
+      - key: BREVO_API_KEY
+        sync: true
+      - key: BREVO_SMTP_SERVER
+        value: smtp-relay.brevo.com
+      - key: BREVO_SMTP_PORT
+        value: "587"
+      - key: BREVO_SMTP_USERNAME
+        value: 96f5ae002@smtp-brevo.com
+      - key: BREVO_SENDER_EMAIL
+        value: noreply@odvsicilia.it
+      - key: BREVO_SENDER_NAME
+        value: ODV Sicilia
+      
+      # Application Configuration
+      - key: FRONTEND_URL
+        value: https://odvsicilia.it
+      - key: BACKEND_URL
+        value: https://odv-mfnu.onrender.com
+      - key: H2_CONSOLE_ENABLED
+        value: "false"
+      
+      # Build Configuration
+      - key: DOCKERFILE_VARIANT
+        value: "default"
+      
+      # ============================================================================
+      # TROUBLESHOOTING DATABASE CONNECTIONS
+      # ============================================================================
+      # 
+      # How to verify your environment variables in Render dashboard:
+      # 1. Navigate to your service in Render dashboard
+      # 2. Go to "Environment" tab
+      # 3. Check that DATABASE_URL, DATABASE_USER, and DATABASE_PASSWORD are set
+      # 4. Click "Show" next to each variable to verify the values
+      # 5. Ensure DATABASE_URL has the correct format and URL-encoded password
+      # 6. Ensure DATABASE_USER matches the username in DATABASE_URL
+      # 7. Ensure DATABASE_PASSWORD is the raw password (NOT URL-encoded)
+      #
+      # What to look for in Render logs if connection fails:
+      # 
+      # SUCCESS indicators:
+      #   - "HikariPool-1 - Start completed"
+      #   - "Mapped \"{[/actuator/health]}\" onto public"
+      #   - "Started BackendApplication in X.XXX seconds"
+      #   - Health check endpoint returns 200 OK
+      #
+      # FAILURE indicators and solutions:
+      #   
+      #   Error: "Connection to localhost:5432 refused"
+      #   → DATABASE_URL is not set or incorrectly formatted
+      #   → Verify DATABASE_URL is set in Render environment variables
+      #
+      #   Error: "password authentication failed for user"
+      #   → Password is incorrect or incorrectly encoded
+      #   → Check that special characters in DATABASE_URL are URL-encoded
+      #   → Verify DATABASE_PASSWORD matches your Supabase password exactly
+      #
+      #   Error: "FATAL: database does not exist"
+      #   → Database name in URL is wrong (should be "postgres" for Supabase)
+      #   → Verify the format: ...pooler.supabase.com:6543/postgres
+      #
+      #   Error: "Connection timeout" or "Connection refused"
+      #   → Wrong host or port in DATABASE_URL
+      #   → Verify you're using the correct Supabase pooler URL
+      #   → Check if you're using port 6543 (transaction mode) or 5432 (session mode)
+      #   → Ensure your Supabase project allows connections from external IPs
+      #
+      #   Error: "No suitable driver found for jdbc:postgres://"
+      #   → DATABASE_URL should start with "postgres://" NOT "jdbc:postgresql://"
+      #   → The application converts it automatically to JDBC format
+      #
+      # How to test your connection string locally:
+      #   1. Copy your DATABASE_URL from Render
+      #   2. Set it in your local .env file
+      #   3. Run: .\mvn.ps1 spring-boot:run
+      #   4. Check logs for successful HikariPool initialization
+      #
+      # Need more help?
+      #   - Check Render logs: Dashboard → Your Service → Logs
+      #   - Check Supabase connection info: Dashboard → Project Settings → Database
+      #   - Verify network connectivity: https://supabase.com/docs/guides/platform/network-restrictions
+      # ============================================================================
+
+# Docker Registry Credentials for Docker Hub authentication
+dockerRegistryCredentials:
+  - registry: https://index.docker.io/v1/
+    username:
+      fromEnvVar: DOCKER_HUB_USERNAME
+    password:
+      fromEnvVar: DOCKER_HUB_PASSWORD
+
+# No database service needed - using external Supabase database
