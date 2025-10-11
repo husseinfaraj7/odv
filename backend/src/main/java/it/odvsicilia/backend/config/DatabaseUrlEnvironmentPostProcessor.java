@@ -58,16 +58,17 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
                     hostname, validationResult.getErrorMessage());
             }
         } catch (IllegalArgumentException e) {
-            logger.warn("Failed to extract hostname for validation from DATABASE_URL: {} - {}. " +
+            logger.error("DATABASE_URL format is invalid and cannot be parsed for hostname validation. " +
+                "Failed to extract hostname from: {}. Error: {}. " +
                 "Continuing with normal datasource initialization.", 
                 maskPassword(databaseUrl), e.getMessage());
         } catch (URISyntaxException e) {
-            logger.warn("Failed to parse DATABASE_URL for hostname validation (URI syntax error): {}. " +
-                "Continuing with normal datasource initialization.", 
+            logger.error("DATABASE_URL format is invalid and cannot be parsed for hostname validation. " +
+                "URI syntax error: {}. Continuing with normal datasource initialization.", 
                 e.getMessage());
         } catch (Exception e) {
-            logger.warn("Unexpected error during hostname extraction or validation: {}. " +
-                "Continuing with normal datasource initialization.", 
+            logger.error("DATABASE_URL format is invalid and cannot be parsed for hostname validation. " +
+                "Unexpected error: {}. Continuing with normal datasource initialization.", 
                 e.getMessage());
         }
         
