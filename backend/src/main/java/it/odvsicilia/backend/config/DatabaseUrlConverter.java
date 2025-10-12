@@ -7,8 +7,8 @@ import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,7 +26,7 @@ public class DatabaseUrlConverter implements EnvironmentPostProcessor {
 
         if (databaseUrl.startsWith("postgres://") || databaseUrl.startsWith("postgresql://")) {
             try {
-                String jdbcUrl = convertToJdbcUrl(databaseUrl);
+                String jdbcUrl = buildJdbcUrl(databaseUrl);
                 
                 Map<String, Object> props = new HashMap<>();
                 props.put("spring.datasource.url", jdbcUrl);
@@ -42,36 +42,37 @@ public class DatabaseUrlConverter implements EnvironmentPostProcessor {
         }
     }
 
-    private String convertToJdbcUrl(String databaseUrl) {
-        String url = databaseUrl.replace("postgres://", "jdbc:postgresql://")
-                                 .replace("postgresql://", "jdbc:postgresql://");
+    private static String buildJdbcUrl(String databaseUrl) throws URISyntaxException {
+        URI uri = new URI(databaseUrl.replace("postgres://", "postgresql://"));
         
-        int atIndex = url.indexOf('@');
-        if (atIndex == -1) {
-            return url;
+        String host = uri.getHost();
+        int port = uri.getPort();
+        if (port == -1) {
+            port = 5432;
+        }
+        String database = uri.getPath();
+        if (database != null && database.startsWith("/")) {
+            database = database.substring(1);
+        }
+        if (database == null || database.isEmpty()) {
+            database = "postgres";
         }
         
-        int schemeEnd = url.indexOf("://") + 3;
-        String userInfo = url.substring(schemeEnd, atIndex);
-        String afterAuth = url.substring(atIndex + 1);
-        
-        String username = "";
+        String userInfo = uri.getUserInfo();
+        String username = "postgres";
         String password = "";
         
-        int colonIndex = userInfo.indexOf(':');
-        if (colonIndex != -1) {
-            username = userInfo.substring(0, colonIndex);
-            password = userInfo.substring(colonIndex + 1);
-        } else {
-            username = userInfo;
+        if (userInfo != null && !userInfo.isEmpty()) {
+            int colonIndex = userInfo.indexOf(':');
+            if (colonIndex != -1) {
+                username = userInfo.substring(0, colonIndex);
+                password = userInfo.substring(colonIndex + 1);
+            } else {
+                username = userInfo;
+            }
         }
         
-        String baseUrl = "jdbc:postgresql://" + afterAuth;
-        
-        String encodedUsername = URLEncoder.encode(username, StandardCharsets.UTF_8);
-        String encodedPassword = URLEncoder.encode(password, StandardCharsets.UTF_8);
-        
-        String separator = baseUrl.contains("?") ? "&" : "?";
-        return baseUrl + separator + "user=" + encodedUsername + "&password=" + encodedPassword;
+        return String.format("jdbc:postgresql://%s:%d/%s?user=%s&password=%s", 
+                           host, port, database, username, password);
     }
 }

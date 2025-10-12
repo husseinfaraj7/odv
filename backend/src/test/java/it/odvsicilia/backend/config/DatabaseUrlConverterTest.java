@@ -4,20 +4,27 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.mock.env.MockEnvironment;
 
-import java.net.URISyntaxException;
+import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("DatabaseUrlConverter Tests")
 class DatabaseUrlConverterTest {
 
+    private String buildJdbcUrl(String databaseUrl) throws Exception {
+        Method method = DatabaseUrlConverter.class.getDeclaredMethod("buildJdbcUrl", String.class);
+        method.setAccessible(true);
+        return (String) method.invoke(null, databaseUrl);
+    }
+
     @Test
     @DisplayName("Should convert direct Supabase URL to JDBC format")
-    void testConvertDirectSupabaseUrl() throws URISyntaxException {
+    void testConvertDirectSupabaseUrl() throws Exception {
         String postgresUrl = "postgres://user:pass@db.abcdefghij1234567890.supabase.co:5432/postgres";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.startsWith("jdbc:postgresql://"));
@@ -30,10 +37,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should convert pooler Supabase URL to JDBC format")
-    void testConvertPoolerSupabaseUrl() throws URISyntaxException {
+    void testConvertPoolerSupabaseUrl() throws Exception {
         String postgresUrl = "postgres://user:pass@aws-0-eu-north-1.pooler.supabase.com:6543/postgres";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.startsWith("jdbc:postgresql://"));
@@ -46,10 +53,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should preserve complex passwords with special characters")
-    void testConvertWithComplexPassword() throws URISyntaxException {
+    void testConvertWithComplexPassword() throws Exception {
         String postgresUrl = "postgres://myuser:Passw0rd123!@db.testproject12345678.supabase.co:5432/postgres";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.contains("user=myuser"));
@@ -58,10 +65,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should handle URL with default port (5432)")
-    void testConvertWithDefaultPort() throws URISyntaxException {
+    void testConvertWithDefaultPort() throws Exception {
         String postgresUrl = "postgres://user:pass@localhost/testdb";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.contains(":5432/"));
@@ -76,8 +83,8 @@ class DatabaseUrlConverterTest {
     })
     @DisplayName("Should convert various Supabase URLs correctly")
     void testConvertVariousSupabaseUrls(String postgresUrl, String expectedUser, String expectedPass, 
-                                        String expectedHost, int expectedPort) throws URISyntaxException {
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+                                        String expectedHost, int expectedPort) throws Exception {
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.startsWith("jdbc:postgresql://"));
@@ -89,10 +96,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should handle URL with query parameters")
-    void testConvertWithQueryParameters() throws URISyntaxException {
+    void testConvertWithQueryParameters() throws Exception {
         String postgresUrl = "postgres://user:pass@db.testproject12345678.supabase.co:5432/postgres?sslmode=require";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.startsWith("jdbc:postgresql://"));
@@ -102,10 +109,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should preserve SSL mode parameter from URL")
-    void testPreserveSslModeParameter() throws URISyntaxException {
+    void testPreserveSslModeParameter() throws Exception {
         String postgresUrl = "postgres://user:pass@db.testproject12345678.supabase.co:5432/postgres?sslmode=require&connect_timeout=10";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.contains("db.testproject12345678.supabase.co"));
@@ -115,10 +122,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should handle different database names")
-    void testConvertWithDifferentDatabaseNames() throws URISyntaxException {
+    void testConvertWithDifferentDatabaseNames() throws Exception {
         String postgresUrl = "postgres://user:pass@db.testproject12345678.supabase.co:5432/mydatabase";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.contains("/mydatabase?"));
@@ -126,10 +133,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should handle URL without password")
-    void testConvertWithoutPassword() throws URISyntaxException {
+    void testConvertWithoutPassword() throws Exception {
         String postgresUrl = "postgres://user@localhost:5432/testdb";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.contains("user=user"));
@@ -138,20 +145,20 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should handle malformed URL gracefully")
-    void testConvertMalformedUrl() throws URISyntaxException {
+    void testConvertMalformedUrl() throws Exception {
         String malformedUrl = "not-a-valid-url";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(malformedUrl);
+        String jdbcUrl = buildJdbcUrl(malformedUrl);
         
         assertNotNull(jdbcUrl);
     }
 
     @Test
     @DisplayName("Should handle direct connection URL with aws-0 region prefix in pooler format")
-    void testConvertPoolerUsEast1() throws URISyntaxException {
+    void testConvertPoolerUsEast1() throws Exception {
         String postgresUrl = "postgres://postgres:password123@aws-0-us-east-1.pooler.supabase.com:6543/postgres";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.contains("aws-0-us-east-1.pooler.supabase.com"));
@@ -162,10 +169,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should handle pooler URL with aws-1 index")
-    void testConvertPoolerWithIndex1() throws URISyntaxException {
+    void testConvertPoolerWithIndex1() throws Exception {
         String postgresUrl = "postgres://myuser:mypass@aws-1-eu-west-1.pooler.supabase.com:6543/postgres";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.contains("aws-1-eu-west-1.pooler.supabase.com"));
@@ -176,10 +183,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should properly format JDBC URL with all components")
-    void testJdbcUrlFormat() throws URISyntaxException {
+    void testJdbcUrlFormat() throws Exception {
         String postgresUrl = "postgres://testuser:testpass@db.abcdef1234567890abcd.supabase.co:5432/postgres";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertEquals("jdbc:postgresql://db.abcdef1234567890abcd.supabase.co:5432/postgres?user=testuser&password=testpass", 
                      jdbcUrl);
@@ -187,20 +194,20 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should convert localhost URL correctly")
-    void testConvertLocalhostUrl() throws URISyntaxException {
+    void testConvertLocalhostUrl() throws Exception {
         String postgresUrl = "postgres://admin:admin@localhost:5432/mydb";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertEquals("jdbc:postgresql://localhost:5432/mydb?user=admin&password=admin", jdbcUrl);
     }
 
     @Test
     @DisplayName("Should handle URL with username but no password")
-    void testConvertUrlWithUsernameOnly() throws URISyntaxException {
+    void testConvertUrlWithUsernameOnly() throws Exception {
         String postgresUrl = "postgres://myuser@db.testproject12345678.supabase.co:5432/postgres";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.contains("user=myuser"));
@@ -209,10 +216,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should handle URL with no user info (defaults to postgres)")
-    void testConvertUrlWithNoUserInfo() throws URISyntaxException {
+    void testConvertUrlWithNoUserInfo() throws Exception {
         String postgresUrl = "postgres://localhost:5432/testdb";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.contains("user=postgres"));
@@ -221,10 +228,10 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should handle password with colon character (splits on first colon)")
-    void testConvertUrlWithColonInPassword() throws URISyntaxException {
+    void testConvertUrlWithColonInPassword() throws Exception {
         String postgresUrl = "postgres://user:pass:word@localhost:5432/testdb";
         
-        String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(postgresUrl);
+        String jdbcUrl = buildJdbcUrl(postgresUrl);
         
         assertNotNull(jdbcUrl);
         assertTrue(jdbcUrl.contains("user=user"));
@@ -233,7 +240,7 @@ class DatabaseUrlConverterTest {
 
     @Test
     @DisplayName("Should convert regional pooler URLs correctly")
-    void testConvertRegionalPoolerUrls() throws URISyntaxException {
+    void testConvertRegionalPoolerUrls() throws Exception {
         String[] poolerUrls = {
             "postgres://user:pass@aws-0-ca-central-1.pooler.supabase.com:6543/postgres",
             "postgres://user:pass@aws-0-sa-east-1.pooler.supabase.com:6543/postgres",
@@ -241,7 +248,7 @@ class DatabaseUrlConverterTest {
         };
         
         for (String url : poolerUrls) {
-            String jdbcUrl = DatabaseUrlUtils.buildJdbcUrl(url);
+            String jdbcUrl = buildJdbcUrl(url);
             
             assertNotNull(jdbcUrl);
             assertTrue(jdbcUrl.startsWith("jdbc:postgresql://"));
