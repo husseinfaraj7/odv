@@ -707,6 +707,92 @@ services:
       # REQUIRED FORMAT: postgresql://postgres.[PROJECT_REF]:[YOUR-PASSWORD]@aws-1-[REGION].pooler.supabase.com:[PORT]/postgres
       # 
       # ============================================================================
+      # DATABASE_URL SCHEME FORMAT - AUTOMATIC CONVERSION
+      # ============================================================================
+      # 
+      # All database URLs should use the standard PostgreSQL "postgres://" or "postgresql://" scheme.
+      # The application includes a lightweight URL converter that automatically transforms this to the
+      # JDBC-compatible "jdbc:postgresql://" format at runtime.
+      #
+      # This conversion:
+      # - Works automatically for both direct and pooler connections
+      # - Requires no special configuration or handling
+      # - Handles credential extraction and URL-encoding transparently
+      # - Is format-agnostic: just copy the URL from Supabase dashboard
+      #
+      # ============================================================================
+      # DIRECT CONNECTION FORMAT EXAMPLE
+      # ============================================================================
+      #
+      # Use when you need direct database access (bypasses pooler):
+      #
+      # Format:
+      #   postgres://user:password@db.PROJECT_REF.supabase.co:5432/postgres?sslmode=require
+      #
+      # Real-world example:
+      #   postgres://postgres.abcd1234:MyS3cr3tP@ssw0rd@db.abcd1234.supabase.co:5432/postgres?sslmode=require
+      #
+      # Automatic conversion result (handled internally):
+      #   jdbc:postgresql://db.abcd1234.supabase.co:5432/postgres?user=postgres.abcd1234&password=MyS3cr3tP%40ssw0rd&sslmode=require
+      #
+      # Components:
+      #   - Scheme: postgres:// → automatically converted to jdbc:postgresql://
+      #   - User: postgres.abcd1234
+      #   - Password: MyS3cr3tP@ssw0rd → automatically URL-encoded to MyS3cr3tP%40ssw0rd
+      #   - Host: db.abcd1234.supabase.co
+      #   - Port: 5432 (standard PostgreSQL port)
+      #   - Database: postgres
+      #   - SSL: sslmode=require
+      #
+      # ============================================================================
+      # TRANSACTION POOLER FORMAT EXAMPLE (RECOMMENDED)
+      # ============================================================================
+      #
+      # Use for production to prevent connection exhaustion:
+      #
+      # Format:
+      #   postgres://user:password@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require
+      #
+      # Real-world example:
+      #   postgres://postgres.abcd1234:MyS3cr3tP@ssw0rd@aws-0-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require
+      #
+      # Automatic conversion result (handled internally):
+      #   jdbc:postgresql://aws-0-eu-north-1.pooler.supabase.com:6543/postgres?user=postgres.abcd1234&password=MyS3cr3tP%40ssw0rd&sslmode=require
+      #
+      # Components:
+      #   - Scheme: postgres:// → automatically converted to jdbc:postgresql://
+      #   - User: postgres.abcd1234
+      #   - Password: MyS3cr3tP@ssw0rd → automatically URL-encoded to MyS3cr3tP%40ssw0rd
+      #   - Host: aws-0-eu-north-1.pooler.supabase.com
+      #   - Port: 6543 (transaction pooler port)
+      #   - Database: postgres
+      #   - SSL: sslmode=require
+      #
+      # Regional variations (all use same format, just different region):
+      #   EU North 1:      postgres://user:pass@aws-0-eu-north-1.pooler.supabase.com:6543/postgres
+      #   EU North 1 (v2): postgres://user:pass@aws-1-eu-north-1.pooler.supabase.com:6543/postgres
+      #   US East 1:       postgres://user:pass@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+      #   US East 1 (v2):  postgres://user:pass@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+      #   AP Southeast 1:  postgres://user:pass@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+      #
+      # ============================================================================
+      # KEY INSIGHT: NO CONFIGURATION DIFFERENCES BETWEEN CONNECTION TYPES
+      # ============================================================================
+      #
+      # The lightweight URL converter handles both direct and pooler connections identically:
+      #
+      # 1. Direct connection:
+      #    Input:  postgres://user:pass@db.PROJECT_REF.supabase.co:5432/postgres
+      #    Output: jdbc:postgresql://db.PROJECT_REF.supabase.co:5432/postgres?user=...&password=...
+      #
+      # 2. Transaction pooler:
+      #    Input:  postgres://user:pass@aws-0-REGION.pooler.supabase.com:6543/postgres
+      #    Output: jdbc:postgresql://aws-0-REGION.pooler.supabase.com:6543/postgres?user=...&password=...
+      #
+      # There are NO special settings, flags, or configuration differences between the two.
+      # Simply copy the URL from Supabase dashboard and paste it - the conversion is automatic.
+      #
+      # ============================================================================
       # ⚠️ CRITICAL - PASSWORD ENCODING WARNING ⚠️
       # ============================================================================
       # 
