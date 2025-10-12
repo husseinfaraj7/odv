@@ -7,8 +7,6 @@ import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,55 +22,41 @@ public class DatabaseUrlConverter implements EnvironmentPostProcessor {
             return;
         }
 
-        if (databaseUrl.startsWith("postgres://") || databaseUrl.startsWith("postgresql://")) {
-            try {
-                String jdbcUrl = buildJdbcUrl(databaseUrl);
-
-                Map<String, Object> props = new HashMap<>();
-                props.put("spring.datasource.url", jdbcUrl);
-
-                MapPropertySource propertySource = new MapPropertySource("databaseUrlConversion", props);
-                environment.getPropertySources().addFirst(propertySource);
-
-                logger.info("Converted DATABASE_URL to JDBC format");
-            } catch (Exception e) {
-                logger.error("Failed to convert DATABASE_URL: {}", e.getMessage());
-                throw new IllegalStateException("Invalid DATABASE_URL format", e);
-            }
+        String convertedUrl = null;
+        if (databaseUrl.startsWith("postgres://")) {
+            convertedUrl = "jdbc:postgresql://" + databaseUrl.substring("postgres://".length());
+        } else if (databaseUrl.startsWith("postgresql://")) {
+            convertedUrl = "jdbc:postgresql://" + databaseUrl.substring("postgresql://".length());
+        }
+        
+        if (convertedUrl != null) {
+            logger.info("Original URL: {}", maskPassword(databaseUrl));
+            logger.info("Converted URL: {}", maskPassword(convertedUrl));
+            
+            Map<String, Object> props = new HashMap<>();
+            props.put("spring.datasource.url", convertedUrl);
+            
+            MapPropertySource propertySource = new MapPropertySource("databaseUrlConversion", props);
+            environment.getPropertySources().addFirst(propertySource);
         }
     }
 
-    private static String buildJdbcUrl(String databaseUrl) throws URISyntaxException {
-        URI uri = new URI(databaseUrl.replace("postgres://", "postgresql://"));
-
-        String host = uri.getHost();
-        int port = uri.getPort();
-        if (port == -1) {
-            port = 5432;
-        }
-        String database = uri.getPath();
-        if (database != null && database.startsWith("/")) {
-            database = database.substring(1);
-        }
-        if (database == null || database.isEmpty()) {
-            database = "postgres";
-        }
-
-        String userInfo = uri.getUserInfo();
-        String username = "postgres";
-        String password = "";
-
-        if (userInfo != null && !userInfo.isEmpty()) {
-            int colonIndex = userInfo.indexOf(':');
-            if (colonIndex != -1) {
-                username = userInfo.substring(0, colonIndex);
-                password = userInfo.substring(colonIndex + 1);
-            } else {
-                username = userInfo;
+    private String maskPassword(String url) {
+        if (url.contains("@")) {
+            int schemeEnd = url.indexOf("://") + 3;
+            int atIndex = url.indexOf('@');
+            if (atIndex > schemeEnd) {
+                String beforeAuth = url.substring(0, schemeEnd);
+                String userInfo = url.substring(schemeEnd, atIndex);
+                String afterAuth = url.substring(atIndex);
+                
+                int colonIndex = userInfo.indexOf(':');
+                if (colonIndex != -1) {
+                    String username = userInfo.substring(0, colonIndex);
+                    return beforeAuth + username + ":***" + afterAuth;
+                }
             }
         }
-
-        return String.format("jdbc:postgresql://%s:%d/%s?user=%s&password=%s",
-                           host, port, database, username, password);
+        return url;
     }
 }
