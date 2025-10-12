@@ -19,7 +19,7 @@ public class DatabaseUrlConverter implements EnvironmentPostProcessor {
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         String databaseUrl = environment.getProperty("DATABASE_URL");
-        
+
         if (databaseUrl == null || databaseUrl.trim().isEmpty()) {
             return;
         }
@@ -27,13 +27,13 @@ public class DatabaseUrlConverter implements EnvironmentPostProcessor {
         if (databaseUrl.startsWith("postgres://") || databaseUrl.startsWith("postgresql://")) {
             try {
                 String jdbcUrl = buildJdbcUrl(databaseUrl);
-                
+
                 Map<String, Object> props = new HashMap<>();
                 props.put("spring.datasource.url", jdbcUrl);
-                
+
                 MapPropertySource propertySource = new MapPropertySource("databaseUrlConversion", props);
                 environment.getPropertySources().addFirst(propertySource);
-                
+
                 logger.info("Converted DATABASE_URL to JDBC format");
             } catch (Exception e) {
                 logger.error("Failed to convert DATABASE_URL: {}", e.getMessage());
@@ -44,7 +44,7 @@ public class DatabaseUrlConverter implements EnvironmentPostProcessor {
 
     private static String buildJdbcUrl(String databaseUrl) throws URISyntaxException {
         URI uri = new URI(databaseUrl.replace("postgres://", "postgresql://"));
-        
+
         String host = uri.getHost();
         int port = uri.getPort();
         if (port == -1) {
@@ -57,11 +57,11 @@ public class DatabaseUrlConverter implements EnvironmentPostProcessor {
         if (database == null || database.isEmpty()) {
             database = "postgres";
         }
-        
+
         String userInfo = uri.getUserInfo();
         String username = "postgres";
         String password = "";
-        
+
         if (userInfo != null && !userInfo.isEmpty()) {
             int colonIndex = userInfo.indexOf(':');
             if (colonIndex != -1) {
@@ -71,8 +71,8 @@ public class DatabaseUrlConverter implements EnvironmentPostProcessor {
                 username = userInfo;
             }
         }
-        
-        return String.format("jdbc:postgresql://%s:%d/%s?user=%s&password=%s", 
+
+        return String.format("jdbc:postgresql://%s:%d/%s?user=%s&password=%s",
                            host, port, database, username, password);
     }
 }
