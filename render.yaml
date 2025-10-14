@@ -1,0 +1,69 @@
+services:
+  # Backend Service - Java Spring Boot
+  - type: web
+    name: faraj-project-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerRegistryCredential: 
+      registry: https://index.docker.io/v1/
+      username:
+        fromEnvVar: DOCKER_HUB_USERNAME
+      password:
+        fromEnvVar: DOCKER_HUB_PASSWORD
+    region: oregon
+    healthCheckPath: /actuator/health
+    # Using main Dockerfile with updated OpenJDK 17 base images (openjdk:17-jdk-slim and openjdk:17-jre-slim)
+    envVars:
+      # Spring Boot Configuration
+      - key: SPRING_PROFILES_ACTIVE
+        value: "prod"
+      - key: PORT
+        value: "8080"
+      
+      # Database Configuration
+      # Get connection strings from: Supabase Dashboard → Settings → Database
+      #
+      # Direct Connection (for long-running connections, LISTEN/NOTIFY, advisory locks):
+      #   postgres://user:pass@db.PROJECT_REF.supabase.co:5432/postgres?sslmode=require
+      #
+      # Transaction Pooler (recommended for serverless/auto-scaling workloads):
+      #   postgres://user:pass@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require
+      #
+      - key: DATABASE_URL
+        value: "postgresql://postgres.YOUR_PROJECT_REF:[YOUR-PASSWORD]@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require"
+      - key: DATABASE_USER
+        value: "postgres.YOUR_PROJECT_REF"
+      - key: DATABASE_PASSWORD
+        value: "YOUR_DATABASE_PASSWORD"
+      - key: DDL_AUTO
+        value: "validate"
+      
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        value: https://YOUR_PROJECT_REF.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: true
+      - key: SUPABASE_ROLE_KEY
+        sync: true
+      
+      # Email Configuration
+      - key: ADMIN_EMAIL
+        sync: true
+      - key: BREVO_API_KEY
+        sync: true
+      - key: BREVO_SMTP_SERVER
+        value: smtp-relay.brevo.com
+      - key: BREVO_SMTP_PORT
+        value: "587"
+      - key: BREVO_SMTP_USERNAME
+        value: 96f5ae002@smtp-brevo.com
+      - key: BREVO_SENDER_EMAIL
+        value: noreply@odvsicilia.it
+      - key: BREVO_SENDER_NAME
+        value: ODV Sicilia
+      
+      # Application Configuration
+      - key: FRONTEND_URL
+        value: https://odvsicilia.it
+      - key: BACKEND_URL
+        value: https://odv-mfnu.onrender.com
